@@ -7,12 +7,45 @@
 #   2. 登录并获取 token
 #   3. 执行打卡
 #   4. 记录日志
-#   5. 可选：发送 Telegram 通知
+#   5. 可选：发送通知（PushPlus 微信 / Telegram）
 # ═══════════════════════════════════════════════════════════
 
 set -euo pipefail
 
 LOG_FILE="/tmp/auto_checkin_output.txt"
+
+
+# ═══════════════════════════════════════════════════════════
+# 通知函数（必须在调用前定义）
+# ═══════════════════════════════════════════════════════════
+send_notification() {
+    local title="$1"
+    local message="$2"
+
+    # ── 微信通知（PushPlus，免费微信推送） ──
+    if [ -n "${PUSHPLUS_TOKEN:-}" ]; then
+        curl -s -X POST "http://www.pushplus.plus/send" \
+            -d "token=${PUSHPLUS_TOKEN}" \
+            -d "title=${title}" \
+            -d "content=${message}" \
+            > /dev/null 2>&1 || true
+    fi
+
+    # ── Telegram 通知 ──
+    if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
+        curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TG_CHAT_ID}" \
+            -d "text=${title}%0A${message}" \
+            -d "parse_mode=HTML" \
+            > /dev/null 2>&1 || true
+    fi
+}
+
+
+# ═══════════════════════════════════════════════════════════
+# 主流程
+# ═══════════════════════════════════════════════════════════
+
 echo "=== Auto Check-In $(date '+%Y-%m-%d %H:%M:%S') ===" | tee "$LOG_FILE"
 
 # ── 1. 写入配置文件 ──────────────────────────────────
@@ -68,18 +101,26 @@ echo "--- Check In ---" | tee -a "$LOG_FILE"
 CHECKIN_OUTPUT=$(python scripts/cli.py checkin 2>&1) || true
 echo "$CHECKIN_OUTPUT" | tee -a "$LOG_FILE"
 
+# 判断结果
 if echo "$CHECKIN_OUTPUT" | grep -qE "打卡成功|已打卡|重复"; then
     echo "[OK] Check-in successful" | tee -a "$LOG_FILE"
     STATUS_LINE=$(echo "$CHECKIN_OUTPUT" | grep -A1 "状态" | tail -1 || echo "已打卡")
     send_notification "✅ 打卡成功" "$STATUS_LINE"
+
 elif echo "$CHECKIN_OUTPUT" | grep -q "超出打卡范围"; then
     echo "[WARN] Out of range" | tee -a "$LOG_FILE"
     send_notification "⚠️ 打卡失败 — 超出范围" "尝试减小 --offset 参数"
     exit 1
+
 elif echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
     echo "[FAIL] Token expired" | tee -a "$LOG_FILE"
     send_notification "❌ 打卡失败 — Token 过期" "需要手动重新登录"
     exit 1
+
+elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
+    echo "[OK] Not check-in time yet (expected outside 21:00-22:30)" | tee -a "$LOG_FILE"
+    # 不在窗口内是正常的，不算失败
+
 else
     echo "[FAIL] Unknown error" | tee -a "$LOG_FILE"
     send_notification "❌ 打卡失败" "$(echo "$CHECKIN_OUTPUT" | tail -5)"
@@ -87,30 +128,3 @@ else
 fi
 
 echo "=== Done $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a "$LOG_FILE"
-
-
-# ═══════════════════════════════════════════════════════
-# 通知函数
-# ═══════════════════════════════════════════════════════
-send_notification() {
-    local title="$1"
-    local message="$2"
-
-    # ── Telegram 通知 ──
-    if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
-        curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TG_CHAT_ID}" \
-            -d "text=${title}%0A${message}" \
-            -d "parse_mode=HTML" \
-            > /dev/null 2>&1 || true
-    fi
-
-    # ── 微信通知（PushPlus，免费微信推送） ──
-    if [ -n "${PUSHPLUS_TOKEN:-}" ]; then
-        curl -s -X POST "http://www.pushplus.plus/send" \
-            -d "token=${PUSHPLUS_TOKEN}" \
-            -d "title=${title}" \
-            -d "content=${message}" \
-            > /dev/null 2>&1 || true
-    fi
-}
