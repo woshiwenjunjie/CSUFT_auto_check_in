@@ -25,7 +25,7 @@ node scripts/sign.js /api/test 1700000000000 test_token
 # GitHub Actions deployment (see docs/guides/GitHub-Actions部署记录.md)
 # - Auto-trigger: daily 21:05 Beijing time (cron: "5 13 * * *")
 # - Manual trigger: gh workflow run auto-checkin.yml
-# - Notification: PushPlus WeChat push + GitHub built-in email
+# - Notification: Server酱 WeChat push + GitHub built-in email
 ```
 
 No build step — pure Python, run directly. The virtual env is `.venv/` (Python 3.14).
@@ -36,7 +36,7 @@ No build step — pure Python, run directly. The virtual env is `.venv/` (Python
 
 **Three-tier design:**
 - **CLI tool** (`scripts/cli.py`, ~1350 lines) — interactive single-file terminal app. Used daily by end users for manual/one-off check-ins. Supports 10 subcommands with config persistence to `~/.auto_check_in/config.json`.
-- **GitHub Actions** (`.github/workflows/auto-checkin.yml` + `scripts/auto_checkin.sh`) — automated daily check-in at 21:05 Beijing time. Bash script handles login → task fetch → check-in → notification lifecycle. PushPlus WeChat push for success/failure notifications.
+- **GitHub Actions** (`.github/workflows/auto-checkin.yml` + `scripts/auto_checkin.sh`) — automated daily check-in at 21:05 Beijing time. Bash script handles login → task fetch → check-in → notification lifecycle. Server酱 WeChat push (primary) + Telegram Bot (optional) for success/failure notifications.
 - **FastAPI server** (`src/main.py`) — minimal scaffolding for phase 3 (multi-user web service). Not yet functional; only has a root route, CORS, and lifespan-managed `ApiClient` singleton.
 
 **Core module — `src/core/client.py` (`ApiClient`):**
@@ -84,4 +84,4 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 - **Tests are fast and offline** — only unit tests for utils (crypto, sign, geo). No integration tests against the real API. Keep it that way until phase 3 adds a test database.
 - **Chinese comments and output** — source code uses Chinese docstrings. CLI output is Chinese. Windows terminals need `sys.stdout.reconfigure(encoding='utf-8')` (already handled in `cli.py`).
 - **All final responses must be in Chinese** — every reply to the user should be written in Chinese (简体中文). Code, commands, and technical identifiers remain in English, but explanations, summaries, and descriptions must be in Chinese.
-- **GitHub Actions credentials** — all secrets (OpenID, username, password, tokens) live in GitHub Secrets, never in code. `password.txt` is gitignored. The auto-checkin script rebuilds `config.json` from Secrets env vars on each run. PushPlus template uses `template=html` for rich card-style notifications.
+- **GitHub Actions credentials** — all secrets (OpenID, username, password, tokens) live in GitHub Secrets, never in code. `password.txt` is gitignored. The auto-checkin script rebuilds `config.json` from Secrets env vars on each run. Notifications are sent via `notify()` which fires all configured channels (Server酱 WeChat + Telegram).

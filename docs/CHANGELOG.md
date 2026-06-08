@@ -1,5 +1,36 @@
 # 更新日志
 
+## [0.8.0] — 2026-06-08
+
+### GitHub Actions 自动部署上线
+- **新增** `.github/workflows/auto-checkin.yml` — 每天 21:05 北京时间自动触发，支持 workflow_dispatch 手动触发
+- **新增** `scripts/auto_checkin.sh` — bash 执行脚本（写配置 → 登录 → 获取任务 → 打卡 → 通知）
+- **新增** `docs/guides/GitHub-Actions部署记录.md` — 部署文档（隐私已脱敏）
+- **新增** `docs/memory/010-GitHub-Actions部署上线.md` — 部署记忆档案
+
+### 通知系统
+- **Server酱** 微信推送（主通道，免费、无需实名、扫码即用）
+- **Telegram Bot** 通知（备用通道）
+- **GitHub 内置邮件** 兜底（Settings → Notifications）
+- 通知函数统一为 `notify()`，自动使用所有已配置渠道
+- PushPlus 因实名认证要求弃用
+
+### 脚本健壮性修复
+- `grep -oP` 改为 `sed` 提取字段（消除 Ubuntu runner PCRE 兼容性问题）
+- `echo -e` 改为 `printf '%b'`（消除跨 shell 兼容性问题）
+- 所有 `GITHUB_*` 环境变量添加默认值（本地运行不再崩溃）
+- curl 添加 10s 连接超时 + 15s 总超时
+
+### 工作流优化
+- 步骤名改为中文，提升可读性
+- 添加 `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`，消除 Node.js 20 弃用警告
+- 分支统一为 `main`
+
+### 隐私安全
+- `password.txt` 格式标准化（变量名对应 GitHub Secrets）
+- 文档中所有凭据已脱敏处理
+- `.gitignore` 确保 `password.txt` 不会被提交
+
 ## [0.7.2] — 2026-06-08
 
 ### Bug 修复（关键 — cmd_status 已打卡却显示"未打卡"）
