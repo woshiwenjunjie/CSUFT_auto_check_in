@@ -46,11 +46,12 @@ jobs:
       - name: 保活提交（防止 60 天无活动停用）
         if: always()
         run: |
-          TZ='CST-8' date '+%Y-%m-%d %H:%M:%S' > .keepalive
+          python -c "from datetime import datetime,timezone,timedelta;n=datetime.now(timezone(timedelta(hours=8)));print(n.strftime('%Y-%m-%d %H:%M:%S'))" > .keepalive
           git config user.name  "Auto Check-In Bot"
           git config user.email "bot@auto-checkin.local"
           git add .keepalive
-          git diff --cached --quiet || git commit -m "chore: daily keepalive $(TZ='CST-8' date '+%Y-%m-%d') [skip ci]"
+          KEEPALIVE_DATE=$(python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d'))")
+          git diff --cached --quiet || git commit -m "chore: daily keepalive ${KEEPALIVE_DATE} [skip ci]"
           git push || true
 
       - name: 上传日志
