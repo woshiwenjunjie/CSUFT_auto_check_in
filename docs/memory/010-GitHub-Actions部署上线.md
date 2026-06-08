@@ -19,7 +19,7 @@
 |------|------|
 | `.github/workflows/auto-checkin.yml` | GitHub Actions 工作流定义 |
 | `scripts/auto_checkin.sh` | bash 执行脚本（登录→获取任务→打卡→通知） |
-| `docs/guides/GitHub-Actions部署记录.md` | 部署文档（隐私已脱敏） |
+| `docs/guides/dev/GitHub-Actions部署记录.md` | 部署文档（隐私已脱敏） |
 
 ## 执行链路
 

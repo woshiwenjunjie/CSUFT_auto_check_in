@@ -21,7 +21,7 @@
 
 ### OpenID 抓包方案落地
 
-- 创建 `docs/guides/fiddler-抓包获取OpenID.md`（341 行，9 章节）
+- 创建 `docs/guides/user/fiddler-抓包获取OpenID.md`（341 行，9 章节）
 - 第 2.1 节补充 Fiddler Classic 汉化操作说明（含 GitHub 补丁链接）
 - 涵盖 Fiddler 下载安装、HTTPS 解密配置、手机代理设置、抓包定位 OpenID 全流程
 

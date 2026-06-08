@@ -22,7 +22,7 @@ python scripts/cli.py checkin         # One-click check-in
 # Cross-validate signing algorithm against JS reference
 node scripts/sign.js /api/test 1700000000000 test_token
 
-# GitHub Actions deployment (see docs/guides/GitHub-Actions部署记录.md)
+# GitHub Actions deployment (see docs/guides/dev/GitHub-Actions部署记录.md)
 # - Auto-trigger: daily 21:05 Beijing time (cron: "5 13 * * *")
 # - Manual trigger: gh workflow run auto-checkin.yml
 # - Notification: Server酱 WeChat push + GitHub built-in email
@@ -71,13 +71,14 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 
 **Done (phase 1–2 + GitHub Actions):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 20 pytest cases pass. ANSI terminal UI with 10 subcommands. GitHub Actions auto-check-in deployed and running daily.
 
-**Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → PushPlus notification. Manual trigger via `workflow_dispatch`.
+**Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → notification via Server酱 + Telegram. Manual trigger via `workflow_dispatch`.
 
 **Next (phase 3):** Build the multi-user web backend — SQLAlchemy models, FastAPI routes, APScheduler cron jobs. See `docs/plan/` for all plans. The `src/api/`, `src/models/`, `src/services/` directories are empty stubs waiting for implementation.
 
 ## Conventions
 
 - **Always keep `AGENTS.md` in sync** — update it when adding files, changing architecture, or fixing notable issues. Also append to `docs/CHANGELOG.md` and create a memory file in `docs/memory/` for significant decisions.
+- **Doc sync is milestone-gated** — only update `AGENTS.md`, `CLAUDE.md`, `CHANGELOG.md`, and memory files when a phase/milestone completes. Daily bug fixes, format tweaks, and minor improvements don't trigger documentation updates. Major features (new commands, new deployment methods, architecture changes) do.
 - **Cross-validate signing** — when touching `src/utils/sign.py`, verify against `scripts/sign.js` with the same inputs. A one-character difference in the MD5 chain breaks all API calls.
 - **WeChat headers are mandatory** — the server returns misleading "sign error" when headers are missing. If `ApiClient` requests start failing, check `WX_USER_AGENT`, `Referer` (must use `servicewechat.com`), and `charset: utf-8` header before suspecting the signature algorithm.
 - **Config priority:** env vars → hardcoded defaults in `ApiClient` class attributes. The CLI stores user-level config at `~/.auto_check_in/config.json` (token, username, openid, password, task_id, tenant_id).

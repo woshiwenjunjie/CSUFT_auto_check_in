@@ -15,7 +15,7 @@ Commands:
   month          按月查询打卡记录
 
 配置文件:  ~/.auto_check_in/config.json
-文档:      docs/guides/CLI教程.md
+文档:      docs/guides/user/CLI教程.md
 """
 
 import argparse
@@ -348,7 +348,7 @@ def cmd_setup(args):
     print()
     print(f"  OpenID 是微信给你的唯一标识（o 开头约 28 位字符）。")
     print(f"  它不在任何地方显示，需要通过抓包工具获取。")
-    print(f"  📖 教程: docs/guides/fiddler-抓包获取OpenID.md")
+    print(f"  📖 教程: docs/guides/user/fiddler-抓包获取OpenID.md")
     print()
 
     openid = input("  OpenID: ").strip()
@@ -1108,8 +1108,8 @@ def _build_parser():
                     "新手上路：python scripts/cli.py setup   ← 推荐从这里开始",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"配置文件: {CONFIG_FILE}\n"
-               f"详细文档: docs/guides/CLI教程.md\n"
-               f"概念解释: docs/guides/关键词与概念解释.md",
+               f"详细文档: docs/guides/user/CLI教程.md\n"
+               f"概念解释: docs/guides/user/关键词与概念解释.md",
     )
     sub = parser.add_subparsers(
         dest="command",

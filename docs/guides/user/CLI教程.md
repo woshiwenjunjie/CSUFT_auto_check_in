@@ -63,7 +63,7 @@ python scripts/cli.py checkin
 
 ### 3.1 获取 OpenID
 
-OpenID 是微信用户在小程序中的唯一标识，需要通过抓包获取。详见 `docs/guides/完整操作指南.md` 第 3 节。
+OpenID 是微信用户在小程序中的唯一标识，需要通过抓包获取。详见 `docs/guides/user/完整操作指南.md` 第 3 节。
 
 简化步骤：
 1. MuMu 模拟器 + Fiddler 抓包
@@ -457,6 +457,6 @@ python scripts/cli.py login-openid <你的OpenID> --bind 0
 
 ## 参考资料
 
-- `docs/guides/完整操作指南.md` — 完整操作教程（含抓包环境搭建）
+- `docs/guides/user/完整操作指南.md` — 完整操作教程（含抓包环境搭建）
 - `docs/CHANGELOG.md` — 版本更新记录
 - `AGENTS.md` — 项目整体指南

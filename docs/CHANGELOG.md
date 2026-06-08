@@ -5,7 +5,7 @@
 ### GitHub Actions 自动部署上线
 - **新增** `.github/workflows/auto-checkin.yml` — 每天 21:05 北京时间自动触发，支持 workflow_dispatch 手动触发
 - **新增** `scripts/auto_checkin.sh` — bash 执行脚本（写配置 → 登录 → 获取任务 → 打卡 → 通知）
-- **新增** `docs/guides/GitHub-Actions部署记录.md` — 部署文档（隐私已脱敏）
+- **新增** `docs/guides/dev/GitHub-Actions部署记录.md` — 部署文档（隐私已脱敏）
 - **新增** `docs/memory/010-GitHub-Actions部署上线.md` — 部署记忆档案
 
 ### 通知系统
@@ -138,9 +138,9 @@
 
 - `docs/memory/006-签名问题终极解决.md` — 完整排查记录
 - `docs/memory/007-CLI联动与用户体验优化.md` — 联动优化记录
-- `docs/guides/CLI教程.md` — CLI 详细教程（联动用法）
-- `docs/guides/服务器部署规划.md` — 阶段三服务器部署规划
-- `docs/guides/完整操作指南.md` — 更新至 v0.7.0
+- `docs/guides/user/CLI教程.md` — CLI 详细教程（联动用法）
+- `docs/plan/服务器部署规划.md` — 阶段三服务器部署规划
+- `docs/guides/user/完整操作指南.md` — 更新至 v0.7.0
 
 ## [0.6.1] — 2026-06-07
 
@@ -151,7 +151,7 @@
 - `src/utils/sign.py`: 签名算法更正，移除中间多余的字符串（`path + "?sign=" + inner_hash` 格式经 JS 源码交叉验证确认正确）
 
 ### 新增
-- `docs/guides/完整操作指南.md`: 新增完整操作指南（330 行），覆盖环境准备、OpenID 抓包、CLI 使用、签名算法、安全设计、FAQ
+- `docs/guides/user/完整操作指南.md`: 新增完整操作指南（330 行），覆盖环境准备、OpenID 抓包、CLI 使用、签名算法、安全设计、FAQ
 - `requirements.txt`: 新增 `certifi==2025.11.12` 直接依赖
 
 ### 验证
@@ -183,95 +183,16 @@
 ### 其他
 - `src/utils/geo.py`: `random_offset` 新增可选 `seed` 参数，支持测试场景复现
 - 所有 8 个源码文件新增中文注释（模块、类、函数级别），提升可读性
-- `docs/guides/fiddler-抓包获取OpenID.md`: 新增 Fiddler 抓包全流程指南（341 行），含 2.1 节汉化说明
+- `docs/guides/user/fiddler-抓包获取OpenID.md`: 新增 Fiddler 抓包全流程指南（341 行），含 2.1 节汉化说明
 - `docs/memory/004-审查修复与OpenID发现.md`: 本次会话记忆存档
 - 清理临时文件（captcha.png、.pytest_cache、4 个 __pycache__）
 - `docs/CHANGELOG.md`: 新增 v0.6.0 条目
 - `AGENTS.md`: 遗留问题表已清空
 
-## [0.5.0] — 2026-06-07
+## [v0.1 — v0.5] — 2026-06-07 · 早期快速迭代
 
-### 全量代码审查
-- 完成完整的全量代码审查（覆盖全部 7 个 Python 源文件 + 配置文件 + 文档）
-- 审查维度：架构设计、代码质量、安全性、错误处理、可测试性、文档完整性、可维护性
-- 发现问题清单：0 Critical / 5 Important / 6 Minor
-- 审查报告保存至 `docs/review/2026-06-07-完整代码审查.md`
-- `AGENTS.md` 新增「代码审查状态」区块，记录已知遗留问题及优先级
-
-### 文档更新
-- `docs/plan.md` — 阶段二标记为✅完成，补充审查子项
-- `AGENTS.md` — 新增项目文件结构（review/目录）、代码审查状态表
-- `docs/review/2026-06-07-完整代码审查.md` — 全量审查报告
-
-## [0.4.0] — 2026-06-07
-
-### CLI 工具开发
-- 创建 CLI 工具 `scripts/cli.py`，支持 7 个子命令：login、login-openid、tasks、detail、checkin、record、month
-- checkin 支持模拟 GPS 坐标偏移、补签、强制提交、文件 ID 上传
-- 配置持久化至 `~/.auto_check_in/config.json`
-- 密码支持 `getpass` 交互式输入，避免进程列表泄露
-
-### 核心模块
-- `src/utils/sign.py` — FlySource-sign 签名算法实现（交叉验证通过），凭据支持环境变量覆盖
-- `src/utils/geo.py` — Haversine 球面距离计算 + GPS 随机偏移
-- `src/utils/crypto.py` — MD5、Base64 工具函数
-- `src/core/client.py` — 学校全链路 API 封装，统一错误处理，单 httpx 连接池复用
-
-### 安全加固
-- 凭据不再硬编码：`FLYSOURCE_CLIENT_ID/FLYSOURCE_CLIENT_SECRET/CHECKIN_BASE_URL` 优先从环境变量读取
-- 统一 HTTP 错误处理，`json.JSONDecodeError` 和 `httpx.RequestError` 捕获返回结构化错误
-
-### 代码审查
-- 完成代码审查，修复全部 Critical/Important 级别问题（凭据安全、密码输入、错误处理、连接池、BASE_URL 可配等）
-
-### 文档更新
-- `docs/memory/004-CLI工具开发完成.md` — CLI 阶段详细记录
-- `AGENTS.md` — 补充项目文件结构、CLI 子命令表、安全设计说明
-
-## [0.3.0] — 2026-06-07
-
-### 逆向完成
-- 反编译 6 个 `.wxapkg`，确定 `_-250202245_7` 为中南林业科技大学平安打卡小程序
-- 完整还原签名算法（`FlySource-sign` 请求头）：`MD5(url + "?sign=" + MD5(ts + token)) + "1." + base64(ts)`
-- 提取 ClientId（`flysource_wise_wxapp`）和 ClientSecret
-- 还原 stuTaskId 生成规则：`MD5(JSON.stringify({latitude, longitude, locationAccuracy, signDate, taskId, fileId}))`
-- 识别所有 API 接口（任务列表、任务详情、打卡、补签、打卡记录等）
-- 清理其他 5 个无关小程序包体，仅保留目标源码
-
-### 文档更新
-- `AGENTS.md` — 新增项目结构（wxapkgs）、逆向分析结论、里程碑
-- `docs/memory/003-逆向分析结果.md` — 完整逆向分析记录
-
-## [0.2.0] — 2026-06-07
-
-### 逆向进展
-- 确认机器安装的是 MuMu 12（非安卓 6 版 5.011）
-- 通过 ADB 方式成功获取 MuMu 12 Root 权限（`adbd is already running as root`）
-- 定位到微信小程序缓存目录 `/data/data/com.tencent.mm/MicroMsg/appbrand/pkg/`
-- 成功从 `general/` 子目录拉取 6 个 `.wxapkg` 文件（含 6.4MB 主包）
-
-### 文档更新
-- `docs/guides/提取小程序wxapkg.md` — 重写为通用版，新增 ADB Root 方式（无设置选项时的方案 B）、adb pull 拉取步骤
-- `docs/memory/002-获取wxapkg文件.md` — 提取过程详细记录
-
-## [0.1.0] — 2026-06-07
-
-### 新增
-- 项目骨架初始化（FastAPI + APScheduler + SQLAlchemy）
-- Python 虚拟环境 `.venv/` 及核心依赖安装
-- 项目目录结构：`src/`（API、core、models、services、utils）、`scripts/`、`tests/`
-- FastAPI 入口 `src/main.py`，基本路由 `/`
-- 环境变量模板 `.env.example`
-- Git 仓库初始化，配置 `.gitignore`
-
-### 逆向工具
-- 安装 `wxapp-unpacker`（npm 全局），用于反编译微信小程序 `.wxapkg`
-- Fiddler Classic 待手动安装（需管理员权限）
-
-### 文档
-- `docs/plan.md` — 整体实施计划（5 阶段 + 4 里程碑）
-- `docs/memory/001-初始记录.md` — 项目初始记忆档案
-- `references/nahs-online-自动打卡文章总结.md` — 原文要点总结
-- `AGENTS.md` — 智能体项目指南
-- `CHANGELOG.md` — 本文件
-- `docs/guides/提取小程序wxapkg.md` — 小程序包体提取操作指南
+**v0.1** 项目骨架（FastAPI + APScheduler + SQLAlchemy）、Git 初始化、`.env.example`  
+**v0.2** MuMu 12 模拟器 Root + ADB 拉取 6 个 `.wxapkg`  
+**v0.3** 反编译确认目标小程序、还原签名算法（FlySource-sign + stuTaskId）、提取 ClientId/ClientSecret  
+**v0.4** CLI 工具初版（7 子命令）、核心模块（sign/crypto/geo/client）、凭据安全加固  
+**v0.5** 全量代码审查（0 Critical / 5 Important / 6 Minor）

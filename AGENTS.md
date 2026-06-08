@@ -79,20 +79,48 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 - ⏳ 阶段三待开始：FastAPI 后端 + 多用户支持 + 定时任务
 - 📋 所有计划见 `docs/plan/`
 
+## 文档同步说明
+
+**同步时机**：仅在阶段/里程碑完成时更新 `AGENTS.md`、`CLAUDE.md`、`CHANGELOG.md` 和 memory 文件。日常小修小改（bug fix、格式调整）只提交代码，不触发文档更新。重大功能（新命令、新部署方式、架构变更）才补齐文档记录。
+
+**同步清单**：
+- `AGENTS.md` — 架构、项目状态、文档索引
+- `CLAUDE.md` — 命令、架构、约定
+- `docs/CHANGELOG.md` — 新增版本条目
+- `docs/memory/` — 新建里程碑记忆文件
+
 ## 文档索引
+
+### 使用指南 `docs/guides/user/`
+
+| 文件 | 内容 |
+|------|------|
+| `完整操作指南.md` | 从零到打卡的完整教程 |
+| `CLI教程.md` | CLI 详细用法（10 个子命令） |
+| `抓包获取OpenID完全指南.md` | 抓包报文分析与获取流程 |
+| `fiddler-抓包获取OpenID.md` | Fiddler 抓包工具配置 |
+| `关键词与概念解释.md` | 术语速查 |
+
+### 开发指南 `docs/guides/dev/`
+
+| 文件 | 内容 |
+|------|------|
+| `提取小程序wxapkg.md` | 微信小程序反编译与源码提取 |
+| `GitHub-Actions部署记录.md` | GitHub Actions 自动打卡部署文档 |
+
+### 计划 `docs/plan/`
+
+| 文件 | 内容 |
+|------|------|
+| `项目整体实施计划.md` | 五阶段路线图 |
+| `GitHub-Actions-个人自动打卡部署方案.md` | GitHub Actions 部署方案 |
+| `服务器部署规划.md` | 多用户服务器方案 |
+
+### 其他
 
 | 类型 | 文件 | 内容 |
 |------|------|------|
-| 计划 | `docs/plan/项目整体实施计划.md` | 五阶段路线图 |
-| 计划 | `docs/plan/GitHub-Actions-个人自动打卡部署方案.md` | GitHub Actions 部署 |
-| 计划 | `docs/plan/服务器部署规划.md` | 多用户服务器方案 |
-| 指南 | `docs/guides/完整操作指南.md` | 从零到打卡的完整教程 |
-| 指南 | `docs/guides/CLI教程.md` | CLI 详细用法 |
-| 指南 | `docs/guides/抓包获取OpenID完全指南.md` | 抓包报文分析 |
-| 指南 | `docs/guides/fiddler-抓包获取OpenID.md` | Fiddler 工具配置 |
-| 指南 | `docs/guides/关键词与概念解释.md` | 术语速查 |
-| 指南 | `docs/guides/GitHub-Actions部署记录.md` | GitHub Actions 部署文档 |
-| 逆向 | `docs/memory/003-逆向分析结果.md` | 源码逐行分析 |
-| 审查 | `docs/review/2026-06-08-深度审查.md` | 最新代码审查 |
 | 日志 | `docs/CHANGELOG.md` | 版本更新记录 |
-| 记忆 | `docs/memory/` | 项目里程碑记忆（001–011） |
+| 逆向 | `docs/memory/003-逆向分析结果.md` | 小程序源码逆向分析 |
+| 审查 | `docs/review/` | 代码审查报告（3 份） |
+| 记忆 | `docs/memory/` | 项目里程碑（001–011） |
