@@ -8,9 +8,15 @@
 
 set -euo pipefail
 
+# ═══════════════════════════════════════════════════════════
+# 统一时区：北京时间 (UTC+8)
+# date 命令和 Python datetime.now() 均受此环境变量影响
+# ═══════════════════════════════════════════════════════════
+export TZ='Asia/Shanghai'
+
 LOG_FILE="/tmp/auto_checkin_output.txt"
-RUN_DATE=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-RUN_DATE_SHORT=$(TZ='Asia/Shanghai' date '+%Y-%m-%d')
+RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+RUN_DATE_SHORT=$(date '+%Y-%m-%d')
 
 GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-unknown}"
@@ -27,7 +33,7 @@ extract_field() {
     echo "$text" | sed -n "s/.*${label}:\s*//p" | head -1
 }
 
-now_ts() { TZ='Asia/Shanghai' date '+%H:%M:%S'; }
+now_ts() { date '+%H:%M:%S'; }
 
 
 # ═══════════════════════════════════════════════════════════
