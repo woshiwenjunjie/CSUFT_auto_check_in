@@ -27,6 +27,12 @@ _beijing=$(_beijing_now)
 RUN_DATE=$(echo "$_beijing" | awk '{print $1 " " $2}')
 RUN_DATE_SHORT=$(echo "$_beijing" | awk '{print $3}')
 
+# 调试：打印所有时间来源
+echo "DEBUG _beijing_now 原始输出: \"$_beijing\"" | tee -a "$LOG_FILE"
+echo "DEBUG RUN_DATE:       \"$RUN_DATE\"" | tee -a "$LOG_FILE"
+echo "DEBUG RUN_DATE_SHORT: \"$RUN_DATE_SHORT\"" | tee -a "$LOG_FILE"
+echo "DEBUG 当前系统: $(date -u 2>/dev/null || echo 'date不可用')" | tee -a "$LOG_FILE"
+
 GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-unknown}"
 GITHUB_RUN_ID="${GITHUB_RUN_ID:-0}"
@@ -226,7 +232,7 @@ if echo "$CHECKIN_OUTPUT" | grep -qE "打卡成功"; then
 | 距宿舍 | ${DISTANCE} |"
     BODY+="
 
-⏰ ${RUN_DATE}"
+⏰ ${RUN_DATE} (北京时间)"
 
     notify "✅ CSUFT 打卡成功" "${BODY}" "✅ CSUFT 打卡成功 | ${CHECKIN_DATE} | ${STATUS_RAW}"
 
@@ -320,7 +326,7 @@ ${LAST_LINES}
 fi
 
 # ── 成功路径收尾 ────────────────────────────────────
-SUMMARY+="\n---\n⏰ ${RUN_DATE} · [Actions](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
+SUMMARY+="\n---\n⏰ ${RUN_DATE} (北京时间) · [Actions](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
 write_github_summary "${SUMMARY}"
 
 echo "========================================" | tee -a "$LOG_FILE"
