@@ -10,9 +10,10 @@ set -euo pipefail
 
 # ═══════════════════════════════════════════════════════════
 # 统一时区：北京时间 (UTC+8)
+# 用 POSIX TZ 格式：CST-8（不需要 zoneinfo 文件，100% 兼容）
 # date 命令和 Python datetime.now() 均受此环境变量影响
 # ═══════════════════════════════════════════════════════════
-export TZ='Asia/Shanghai'
+export TZ='CST-8'
 
 LOG_FILE="/tmp/auto_checkin_output.txt"
 RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
