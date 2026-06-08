@@ -4,11 +4,8 @@ import os
 import time
 import certifi
 import httpx
-from datetime import datetime, timezone, timedelta
-
-# 北京时间 (UTC+8)，用于签名时间戳，不受系统时区影响
-_BEIJING_TZ = timezone(timedelta(hours=8))
-from typing import Optional
+from datetime import datetime
+from src.utils import BEIJING_TZ
 from src.utils.crypto import md5
 from src.utils.sign import generate_sign, generate_basic_auth
 
@@ -54,13 +51,13 @@ class ApiClient:
         """显式关闭 httpx 连接池"""
         self._client.close()
 
-    def _headers(self, url_path: str, extra: Optional[dict] = None,
+    def _headers(self, url_path: str, extra: dict | None = None,
                 no_auth: bool = False) -> dict:
         """构造请求头：Basic 认证 + 微信环境伪装 + FlySource 签名
 
         no_auth=True 时跳过 Basic Auth（用于 captcha 等不需要认证的端点）
         """
-        ts = int(datetime.now(_BEIJING_TZ).timestamp() * 1000)
+        ts = int(datetime.now(BEIJING_TZ).timestamp() * 1000)
         h = {
             "Content-Type": "application/json",
             "charset": "utf-8",
@@ -77,10 +74,10 @@ class ApiClient:
         return h
 
     def _request(self, method: str, path: str,
-                 params: Optional[dict] = None,
-                 data: Optional[dict] = None,
+                 params: dict | None = None,
+                 data: dict | None = None,
                  form: bool = False,
-                 extra_headers: Optional[dict] = None,
+                 extra_headers: dict | None = None,
                  no_auth: bool = False,
                  retry: int = 3) -> dict:
         """底层 HTTP 请求方法
@@ -113,11 +110,11 @@ class ApiClient:
                 continue
         return {"code": 500, "success": False, "msg": f"请求失败: {last_error}"}
 
-    def _get(self, path: str, params: Optional[dict] = None) -> dict:
+    def _get(self, path: str, params: dict | None = None) -> dict:
         return self._request("GET", path, params=params)
 
-    def _post(self, path: str, data: Optional[dict] = None, form: bool = False,
-             extra_headers: Optional[dict] = None) -> dict:
+    def _post(self, path: str, data: dict | None = None, form: bool = False,
+             extra_headers: dict | None = None) -> dict:
         return self._request("POST", path, data=data, form=form, extra_headers=extra_headers)
 
     # --- 认证接口 ---
@@ -141,7 +138,6 @@ class ApiClient:
             extra["Captcha-Key"] = captcha_key
         if captcha_code:
             extra["Captcha-Code"] = captcha_code
-        extra["Content-Type"] = "application/x-www-form-urlencoded"
         return self._post("/api/flySource-auth/oauth/token", data={
             "tenantId": tenant_id, "username": username,
             "password": md5(password), "grant_type": "password", "scope": "all",
@@ -176,7 +172,7 @@ class ApiClient:
                          params={"taskId": task_id})
 
     # --- 打卡记录接口 ---
-    def get_one_record(self, task_id: str, sign_date: Optional[str] = None) -> dict:
+    def get_one_record(self, task_id: str, sign_date: str | None = None) -> dict:
         """查询当天打卡状态"""
         params = {"taskId": task_id}
         if sign_date:

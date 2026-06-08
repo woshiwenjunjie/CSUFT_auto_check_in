@@ -34,8 +34,18 @@ if (args.length >= 3) {
     const [path, ts, token] = args;
     console.log(generateSign(path, parseInt(ts), token));
 } else if (args.length === 1 && args[0] === '--test') {
-    // Self-test: compare with known values (fill in when available)
-    console.log('Usage: node scripts/sign.js <path> <timestamp> <token>');
+    // Self-test: verify signature against known inputs
+    const testPath = '/api/test';
+    const testTs = 1700000000000;
+    const testToken = 'test_token';
+    const result = generateSign(testPath, testTs, testToken);
+    console.log('path:     ', testPath);
+    console.log('timestamp:', testTs);
+    console.log('token:    ', testToken);
+    console.log('sign:     ', result);
+    console.log('');
+    console.log('Cross-validate with Python:');
+    console.log('  python -c "from src.utils.sign import generate_sign; print(generate_sign(\'/api/test\', 1700000000000, \'test_token\'))"');
 } else {
     console.error('Usage: node scripts/sign.js <path> <timestamp> <token>');
     process.exit(1);

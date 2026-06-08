@@ -21,7 +21,7 @@ def random_offset(lat: float, lng: float, max_offset: float = 0.0005,
 
     保留 6 位小数（约 0.1 米精度），seed 参数用于测试场景复现
     """
-    rng = random.Random(seed) if seed is not None else random
+    rng = random.Random(seed)  # seed=None 自动使用系统熵源，避免污染全局随机状态
     lat += rng.uniform(-max_offset, max_offset)
     lng += rng.uniform(-max_offset, max_offset)
     return round(lat, 6), round(lng, 6)
