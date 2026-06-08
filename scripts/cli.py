@@ -22,8 +22,6 @@ import argparse
 import json
 import os
 import sys
-import threading
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -38,224 +36,15 @@ from src.core.client import ApiClient
 from src.utils.crypto import md5
 from src.utils.geo import haversine, random_offset
 
-
-# ═══════════════════════════════════════════════════════════════════════
-# Terminal Style System (ANSI escape codes)
-# ═══════════════════════════════════════════════════════════════════════
-
-class Style:
-    """ANSI terminal styles — works on Windows 10+ and all Unix terminals.
-
-    Respects NO_COLOR env var and isatty check via the c() helper.
-    """
-
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    DIM = "\033[2m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    CYAN = "\033[36m"
-
-    @classmethod
-    def success(cls, text: str) -> str:
-        return f"{cls.GREEN}{text}{cls.RESET}"
-
-    @classmethod
-    def error(cls, text: str) -> str:
-        return f"{cls.RED}{text}{cls.RESET}"
-
-    @classmethod
-    def warning(cls, text: str) -> str:
-        return f"{cls.YELLOW}{text}{cls.RESET}"
-
-    @classmethod
-    def info(cls, text: str) -> str:
-        return f"{cls.CYAN}{text}{cls.RESET}"
-
-    @classmethod
-    def muted(cls, text: str) -> str:
-        return f"{cls.DIM}{text}{cls.RESET}"
-
-    @classmethod
-    def bold(cls, text: str) -> str:
-        return f"{cls.BOLD}{text}{cls.RESET}"
-
-    @classmethod
-    def heading(cls, text: str) -> str:
-        return f"{cls.BOLD}{cls.CYAN}{text}{cls.RESET}"
-
-
-# ---- color guard ----
-
-USE_COLOR = (
-    os.environ.get("NO_COLOR", "").lower() not in ("1", "true", "yes")
-    and sys.stdout.isatty()
+# 从拆分后的子模块导入 UI 和配置工具
+from scripts.cli_ui import (
+    Style, c, divider, kv, bullet, warn_box,
+    STATUS_MAP, _status_display, Spinner,
 )
-
-
-def c(style_fn, text: str) -> str:
-    """Apply a Style classmethod when color is enabled; otherwise plain text."""
-    return style_fn(text) if USE_COLOR else text
-
-
-# ---- output helpers ----
-
-def divider(title: str = "", char: str = "─", width: int = 56):
-    """Print a horizontal rule, optionally with a centered title."""
-    if title:
-        side = max(0, (width - len(title) - 2) // 2)
-        right = max(0, width - side - len(title) - 2)
-        line = char * side + " " + c(Style.bold, title) + " " + char * right
-    else:
-        line = char * width
-    print(c(Style.muted, line))
-
-
-def kv(key: str, value: str, indent: int = 2):
-    """Aligned key-value line."""
-    print(f"{' ' * indent}{c(Style.muted, key + ':')} {value}")
-
-
-def bullet(text: str, ok: bool = True):
-    """Bullet line with success/error icon."""
-    icon = c(Style.success, "✓") if ok else c(Style.error, "✗")
-    print(f"  {icon}  {text}")
-
-
-def warn_box(text: str):
-    """Highlighted warning line."""
-    print(c(Style.warning, f"  !  {text}"))
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Spinner (animated progress indicator for API calls)
-# ═══════════════════════════════════════════════════════════════════════
-
-class Spinner:
-    """Thread-based braille spinner. No-op when stdout is not a TTY."""
-
-    _chars = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-
-    def __init__(self, message: str = "处理中"):
-        self.message = message
-        self._running = False
-        self._thread = None
-        self._active = USE_COLOR and sys.stdout.isatty()
-
-    def _spin(self):
-        i = 0
-        while self._running:
-            sys.stdout.write(
-                f"\r  {self._chars[i % len(self._chars)]}  {self.message}..."
-            )
-            sys.stdout.flush()
-            time.sleep(0.1)
-            i += 1
-
-    def start(self):
-        if not self._active:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._spin, daemon=True)
-        self._thread.start()
-
-    def stop(self, clear: bool = True):
-        self._running = False
-        if self._thread:
-            self._thread.join(timeout=0.3)
-        if clear and sys.stdout.isatty():
-            sys.stdout.write("\r" + " " * (len(self.message) + 25) + "\r")
-            sys.stdout.flush()
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Config persistence
-# ═══════════════════════════════════════════════════════════════════════
-
-CONFIG_DIR = Path.home() / ".auto_check_in"
-CONFIG_FILE = CONFIG_DIR / "config.json"
-
-
-def load_config() -> dict:
-    if CONFIG_FILE.exists():
-        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    return {}
-
-
-def save_config(cfg: dict):
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(
-        json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# Secure password input (with * placeholder echo)
-# ═══════════════════════════════════════════════════════════════════════
-
-def secure_input(prompt: str = "密码: ") -> str:
-    """Read a password while echoing * for each character.
-
-    Windows: msvcrt.getch().  Unix: termios.setraw().
-    Backspace/Delete/Ctrl+C all handled.
-    """
-    try:
-        import msvcrt  # Windows
-
-        sys.stdout.write(prompt)
-        sys.stdout.flush()
-        chars = []
-        while True:
-            ch = msvcrt.getch()
-            if ch in (b"\r", b"\n"):
-                sys.stdout.write("\n")
-                break
-            elif ch in (b"\x08", b"\x7f"):
-                if chars:
-                    chars.pop()
-                    sys.stdout.write("\b \b")
-                    sys.stdout.flush()
-            elif ch == b"\x03":
-                sys.stdout.write("\n")
-                raise KeyboardInterrupt
-            else:
-                chars.append(ch)
-                sys.stdout.write("*")
-                sys.stdout.flush()
-        return b"".join(chars).decode("utf-8", errors="replace")
-    except ImportError:
-        import termios
-        import tty  # Unix
-
-        fd = sys.stdin.fileno()
-        old = termios.tcgetattr(fd)
-        try:
-            tty.setraw(fd)
-            sys.stdout.write(prompt)
-            sys.stdout.flush()
-            chars = []
-            while True:
-                ch = sys.stdin.read(1)
-                if ch in ("\r", "\n"):
-                    sys.stdout.write("\n")
-                    break
-                elif ch in ("\x08", "\x7f"):
-                    if chars:
-                        chars.pop()
-                        sys.stdout.write("\b \b")
-                        sys.stdout.flush()
-                elif ch == "\x03":
-                    sys.stdout.write("\n")
-                    raise KeyboardInterrupt
-                else:
-                    chars.append(ch)
-                    sys.stdout.write("*")
-                    sys.stdout.flush()
-            return "".join(chars)
-        finally:
-            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+from scripts.cli_config import (
+    CONFIG_DIR, CONFIG_FILE,
+    load_config, save_config, get_password, secure_input, _mask,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -288,45 +77,9 @@ def _token_expired(resp: dict) -> bool:
     return "过期" in msg or "login" in msg.lower() or "登录" in msg
 
 
-def _mask(text: str | None, show: int = 4) -> str:
-    """Mask a sensitive string, showing only first and last few characters.
-
-    Returns '' for None/empty input so callers can supply their own fallback
-    (e.g. '(未设置)', '(未登录)') via ``_mask(v) or 'fallback'``.
-    """
-    if not text:
-        return ""
-    if len(text) <= show * 2:
-        return "*" * len(text)
-    return text[:show] + "*" * (len(text) - show * 2) + text[-show:]
-
-
 def _login_expired_hint():
     """Print a consistent re-login suggestion."""
     print(c(Style.muted, "  请重新登录: python scripts/cli.py login-openid"))
-
-
-# ---- shared status map ----
-
-STATUS_MAP: dict[int, str] = {
-    0: "已打卡", 1: "迟到", 2: "请假中",
-    3: "未归", 4: "走读中", 5: "离校中", 6: "外宿中",
-}
-
-
-def _status_display(status_code: int, status_name: str = "") -> str:
-    """Return a color-coded status string for display.
-
-    Uses the status code for color (0=green/success, 1=yellow/warning, else muted)
-    and falls back to STATUS_MAP when status_name is empty.
-    """
-    label = status_name or STATUS_MAP.get(status_code, "未知")
-    if status_code == 0:
-        return c(Style.success, label)
-    elif status_code == 1:
-        return c(Style.warning, label)
-    else:
-        return c(Style.muted, label)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -372,7 +125,7 @@ def cmd_setup(args):
     print()
     print(f"  {c(Style.heading, '第 3 步：密码')}")
     print(
-        f"  {c(Style.muted, '注意：密码会明文保存在本地配置文件中。')}"
+        f"  {c(Style.muted, '注意：密码保存时会自动混淆（base64），不是明文存储。')}"
     )
     save_pwd = input("  是否保存密码？[Y/n]: ").strip().lower()
     password = ""
@@ -397,7 +150,7 @@ def cmd_setup(args):
     if resp.get("access_token"):
         cfg["token"] = resp["access_token"]
         if save_pwd in ("", "y", "yes"):
-            cfg["password"] = password
+            cfg["_password_raw"] = password
         save_config(cfg)
         bullet("登录验证成功")
         bullet(f"配置已保存到 {CONFIG_FILE}")
@@ -445,7 +198,7 @@ def cmd_status(args):
     kv("配置文件", str(CONFIG_FILE))
     kv("学号", _mask(cfg.get("username"), 3) or "(未设置)")
     kv("OpenID", _mask(cfg.get("openid")) or "(未设置)")
-    kv("密码", "已保存" if cfg.get("password") else "未保存")
+    kv("密码", "已保存 (混淆)" if get_password(cfg) else "未保存")
     kv("任务ID", _mask(cfg.get("task_id"), 8) or "(未设置)")
     print()
 
@@ -552,7 +305,7 @@ def cmd_config(args):
             else:
                 print(c(Style.muted, "  已取消"))
         elif args.password:
-            if cfg.pop("password", None) is not None:
+            if cfg.pop("password", None) is not None or cfg.pop("_password_raw", None) is not None:
                 save_config(cfg)
                 print(c(Style.success, "  密码已清除"))
             else:
@@ -581,7 +334,7 @@ def cmd_config(args):
     print(c(Style.bold, "  凭据"))
     kv("学号", _mask(cfg.get("username"), 3) or "(未设置)")
     kv("OpenID", _mask(cfg.get("openid")) or "(未设置)")
-    kv("密码", f"已保存 {_mask(cfg.get('password'))}" if cfg.get("password") else "(未保存)")
+    kv("密码", f"已保存 {_mask(get_password(cfg))}" if get_password(cfg) else "(未保存)")
     kv("Token", _mask(cfg.get("token"), 8) or "(未登录)")
     kv("租户", cfg.get("tenant_id", "000000"))
     print()
@@ -621,7 +374,7 @@ def cmd_login_openid(args):
 
     password = (
         args.password
-        or (cfg.get("password") if not args.force_input else None)
+        or (get_password(cfg) if not args.force_input else None)
         or secure_input("密码: ")
     )
 
@@ -639,7 +392,7 @@ def cmd_login_openid(args):
         cfg["username"] = username
         cfg["openid"] = openid
         if args.save_password:
-            cfg["password"] = password
+            cfg["_password_raw"] = password
         save_config(cfg)
 
         tag = " (密码已保存)" if args.save_password else ""
@@ -671,7 +424,7 @@ def cmd_login(args):
         return
     password = (
         args.password
-        or (cfg.get("password") if not args.force_input else None)
+        or (get_password(cfg) if not args.force_input else None)
         or secure_input("密码: ")
     )
 
@@ -686,7 +439,7 @@ def cmd_login(args):
         cfg["tenant_id"] = args.tenant
         cfg["username"] = username
         if args.save_password:
-            cfg["password"] = password
+            cfg["_password_raw"] = password
         save_config(cfg)
         print()
         bullet("登录成功")
