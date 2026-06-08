@@ -126,5 +126,5 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 |------|------|------|
 | 日志 | `docs/CHANGELOG.md` | 版本更新记录 |
 | 逆向 | `docs/memory/003-逆向分析结果.md` | 小程序源码逆向分析 |
-| 审查 | `docs/review/` | 代码审查报告（3 份） |
+| 审查 | `docs/review/` | 代码审查报告（4 份） |
 | 记忆 | `docs/memory/` | 项目里程碑（001–013） |

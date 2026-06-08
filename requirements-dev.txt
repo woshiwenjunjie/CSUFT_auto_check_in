@@ -1,0 +1,14 @@
+# ═══════════════════════════════════════════════════════════
+# Auto Check-In — 阶段三预留依赖 + 开发工具
+# 安装: pip install -r requirements-dev.txt
+# ═══════════════════════════════════════════════════════════
+-r requirements.txt
+
+# 阶段三 — FastAPI 后端 + 多用户
+apscheduler==3.11.0        # 定时任务调度
+sqlalchemy==2.0.36         # ORM
+databases==0.9.0           # 异步数据库
+psycopg2-binary==2.9.10    # PostgreSQL 驱动
+bcrypt==4.3.0              # 密码哈希
+passlib==1.7.4             # 密码哈希
+python-jose[cryptography]==3.4.0  # JWT

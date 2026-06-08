@@ -1,3 +1,4 @@
+import atexit
 import json
 import os
 import time
@@ -41,6 +42,7 @@ class ApiClient:
         self.base_url = base_url or os.getenv("CHECKIN_BASE_URL", "https://simp.csuft.edu.cn")
         self._client = httpx.Client(timeout=30, verify=certifi.where(), trust_env=False)
         self._referer = f"https://servicewechat.com/{self.WX_APP_ID}/{self.WX_VERSION}/page-frame.html"
+        atexit.register(self.close)  # 确保进程退出时释放连接池（CLI 短生命周期场景）
 
     def __enter__(self):
         return self

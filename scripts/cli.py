@@ -902,6 +902,9 @@ def cmd_checkin(args):
     if args.lat is not None and args.lng is not None:
         cur_lat, cur_lng = float(args.lat), float(args.lng)
         source = "手动指定"
+    elif args.lat is not None or args.lng is not None:
+        print(c(Style.error, "  --lat 和 --lng 必须同时指定"))
+        return
     else:
         cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, args.offset)
         source = f"模拟偏移 ±{args.offset}°"
@@ -976,11 +979,15 @@ def cmd_checkin(args):
                 kv("坐标", f"({d.get('signLat', '')}, {d.get('signLng', '')})")
             if d.get("signTime"):
                 kv("打卡时间", str(d["signTime"]))
+            # 机器可读状态行（供 auto_checkin.sh 解析）
+            print(f"CHECKIN_RESULT: status={sn} date={d.get('signDate', '')}")
             print()
         else:
             print(c(Style.warning, "  服务器未返回打卡记录，请稍后确认"))
+            print("CHECKIN_RESULT: status=未知 date=未知")
     else:
         print(c(Style.muted, "  (无法确认打卡状态，请稍后运行 record 命令查看)"))
+        print("CHECKIN_RESULT: status=未知 date=未知")
 
 
 # ---- record ----
@@ -1283,10 +1290,10 @@ def _build_parser():
         formatter_class=_HELP,
         description="汇总一个月内每天的打卡状态，底部统计正常/迟到/其他天数。",
         epilog="示例:\n"
-               "  python scripts/cli.py month 2026-06            # 查询 2026 年 6 月打卡记录\n"
-               "  python scripts/cli.py month 2026-06 <任务ID>    # 指定任务 ID",
+               "  python scripts/cli.py month 2026-06                      # 查询 2026 年 6 月打卡记录\n"
+               "  python scripts/cli.py month 2026-06 --task-id <任务ID>  # 指定任务 ID",
     )
-    p_month.add_argument("task_id", nargs="?", default="",
+    p_month.add_argument("--task-id", default="",
                          help="任务 ID，留空则自动从配置中读取")
     p_month.add_argument("month",
                          help="月份，格式 YYYY-mm（如 2026-06）")

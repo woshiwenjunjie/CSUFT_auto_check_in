@@ -1,15 +1,10 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
-apscheduler==3.11.0
-httpx==0.28.1
-certifi==2025.11.12
-pycryptodome==3.23.0
-requests==2.32.3
-python-dotenv==1.1.0
-bcrypt==4.3.0
-passlib==1.7.4
-python-jose[cryptography]==3.4.0
-databases==0.9.0
-sqlalchemy==2.0.36
-psycopg2-binary==2.9.10
-pytest==8.3.4
+# ═══════════════════════════════════════════════════════════
+# Auto Check-In — 阶段二（CLI + GitHub Actions）
+# 生产环境实际依赖
+# ═══════════════════════════════════════════════════════════
+httpx==0.28.1              # HTTP 客户端（API 调用）
+certifi==2025.11.12        # SSL 证书（Windows 兼容）
+fastapi==0.115.6           # Web 框架（src/main.py）
+uvicorn[standard]==0.34.0  # ASGI 服务器
+python-dotenv==1.1.0       # .env 环境变量加载
+pytest==8.3.4              # 测试运行器

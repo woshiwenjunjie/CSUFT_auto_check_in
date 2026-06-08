@@ -42,6 +42,12 @@ extract_field() {
     echo "$text" | sed -n "s/.*${label}:\s*//p" | head -1
 }
 
+# 从 CHECKIN_RESULT 行提取字段（比 extract_field 更可靠，不受 ANSI 颜色影响）
+parse_result_field() {
+    local text="$1" field="$2"
+    echo "$text" | grep -oP "${field}=\K[^ ]*" | head -1
+}
+
 now_ts() { _beijing_now | awk '{print $4}'; }
 
 
@@ -182,10 +188,17 @@ echo "[5/5] 执行打卡  $(now_ts)" | tee -a "$LOG_FILE"
 CHECKIN_OUTPUT=$(python scripts/cli.py checkin 2>&1) || true
 echo "$CHECKIN_OUTPUT" | tee -a "$LOG_FILE"
 
-CHECKIN_DATE=$(extract_field "$CHECKIN_OUTPUT" "日期")
-CHECKIN_DATE="${CHECKIN_DATE:-${RUN_DATE_SHORT}}"
-STATUS_RAW=$(extract_field "$CHECKIN_OUTPUT" "状态")
+# 优先用机器可读的 CHECKIN_RESULT 行（不受 ANSI 颜色影响）
+RESULT_LINE=$(echo "$CHECKIN_OUTPUT" | grep -oP 'CHECKIN_RESULT:.*' | head -1)
+if [ -n "${RESULT_LINE}" ]; then
+    STATUS_RAW=$(parse_result_field "$RESULT_LINE" "status")
+    CHECKIN_DATE=$(parse_result_field "$RESULT_LINE" "date")
+else
+    STATUS_RAW=$(extract_field "$CHECKIN_OUTPUT" "状态")
+    CHECKIN_DATE=$(extract_field "$CHECKIN_OUTPUT" "日期")
+fi
 STATUS_RAW="${STATUS_RAW:-未知}"
+CHECKIN_DATE="${CHECKIN_DATE:-${RUN_DATE_SHORT}}"
 DISTANCE=$(extract_field "$CHECKIN_OUTPUT" "与宿舍距离")
 DISTANCE="${DISTANCE:--}"
 
