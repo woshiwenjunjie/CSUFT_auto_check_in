@@ -80,8 +80,8 @@
 | Name | Value 示例 | 说明 |
 |------|-----------|------|
 | `CHECKIN_OPENID` | `oABC123XYZ...` | 微信 OpenID，约 28 位，`o` 开头 |
-| `CHECKIN_USERNAME` | `20234152` | 学号 |
-| `CHECKIN_PASSWORD` | `Wenjunjie123!` | 学校系统密码（明文，加密存储） |
+| `CHECKIN_USERNAME` | `2023XXXXXX` | 学号 |
+| `CHECKIN_PASSWORD` | `你的密码` | 学校系统密码（明文，加密存储） |
 | `SERVERCHAN_KEY` | `SCT361140TMTI8...` | Server酱 SendKey |
 
 可选 Secret（不设也行）：

@@ -50,7 +50,7 @@ Server酱（原名"方糖推送"）是一个免费的消息推送服务，通过
 登录后在控制台页面找到 **SendKey**（以 `SCT` 开头的一长串字符）：
 
 ```
-SCT361140TMTI8GjqdEV2UHMyjWUSjHXEe  ← 示例格式，实际值完全不同
+SCT123456789ABCDEFabcdef1234567890abcdef  ← 示例格式，实际值完全不同
 ```
 
 点击复制按钮，保存好这个值。**不要泄露给任何人**，拥有 SendKey 就能给你发推送。
@@ -80,7 +80,7 @@ https://github.com/你的用户名/CSUFT_auto_check_in/settings/secrets/actions
 | 字段 | 填写内容 |
 |------|----------|
 | **Name** | `SERVERCHAN_KEY`（严格区分大小写，必须一模一样） |
-| **Value** | 粘贴你的 SendKey（如 `SCT361140TMTI8GjqdEV2UHMyjWUSjHXEe`） |
+| **Value** | 粘贴你的 SendKey（如 `SCT123456789ABCDEFabcdef1234567890abcdef`） |
 
 点击 **Add secret** 保存。
 

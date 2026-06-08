@@ -42,7 +42,24 @@ node scripts/sign.js /api/test 1700000000000 test_token  # 签名交叉验证
 
 ### scripts/ — CLI 工具 + GitHub Actions
 
-单文件 `scripts/cli.py`（~1350 行），10 个子命令：`setup` / `status` / `config` / `login-openid` / `login` / `tasks` / `detail` / `checkin` / `record` / `month`。全链路联动设计，凭据持久化至 `~/.auto_check_in/config.json`。
+**模块化 CLI 架构**（v0.9+）：
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `scripts/cli.py` | 248 | 入口 + argparse 骨架 + dispatch 路由 |
+| `scripts/cli_ui.py` | 160 | ANSI 样式 / Spinner / 终端输出辅助 |
+| `scripts/cli_config.py` | 149 | 配置持久化 / 密码混淆(base64) / 安全输入 |
+| `scripts/cli_commands/_common.py` | 36 | 共享工具：get_client / token_expired |
+| `scripts/cli_commands/setup.py` | 101 | 交互式首次配置向导 |
+| `scripts/cli_commands/status.py` | 99 | 登录状态 + 今日打卡概况 |
+| `scripts/cli_commands/config_cmd.py` | 64 | 本地配置查看/清除 |
+| `scripts/cli_commands/auth.py` | 103 | OpenID 登录 + 密码登录 |
+| `scripts/cli_commands/tasks.py` | 112 | 任务列表 + 任务详情 |
+| `scripts/cli_commands/checkin.py` | 289 | 打卡/补签/记录查询/月度统计 |
+
+**新增命令只需 3 步**：新建 `cli_commands/xxx.py` → 实现 `run(args)` → 在 `cli.py` 中 import + 注册 dispatch + 添加 argparse 声明。
+
+**密码存储**：`$obf:<base64>` 前缀混淆格式，`load_config()` 自动还原为 `_password_raw`，`save_config()` 自动混淆写入。向后兼容明文密码。
 
 `scripts/auto_checkin.sh` — GitHub Actions 执行脚本，编排：写配置 → 登录 → 获取任务 → 打卡 → 通知。每次 Action 从 GitHub Secrets 注入凭据全新登录。通知通过 `notify()` 统一分发到 Server酱（微信）和 Telegram（可选）。
 
@@ -74,8 +91,9 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 
 ## 项目状态
 
-- ✅ 阶段一/二完成：逆向分析 + CLI 工具（全部功能可用，20 测试通过）
-- ✅ GitHub Actions 部署：每天 21:05 自动打卡 + Server酱微信通知（v0.8.1 修复静默失败）
+- ✅ 阶段一/二完成：逆向分析 + CLI 工具（全部功能可用，31 测试通过）
+- ✅ GitHub Actions 部署：每天 21:05 自动打卡 + Server酱微信通知
+- ✅ CLI 模块化重构：命令拆分 + 密码混淆 + 签名跨语言验证
 - ⏳ 阶段三待开始：FastAPI 后端 + 多用户支持 + 定时任务
 - 📋 所有计划见 `docs/plan/`
 
