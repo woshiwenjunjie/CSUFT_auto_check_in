@@ -40,9 +40,15 @@ node scripts/sign.js /api/test 1700000000000 test_token  # 签名交叉验证
 | **定位计算** | `src/utils/geo.py` | Haversine 距离 + GPS 随机偏移 |
 | **Web 入口** | `src/main.py` | FastAPI 脚手架（阶段三） |
 
-### scripts/ — CLI 工具
+### scripts/ — CLI 工具 + GitHub Actions
 
-单文件 `scripts/cli.py`（~1230 行），10 个子命令：`setup` / `status` / `config` / `login-openid` / `login` / `tasks` / `detail` / `checkin` / `record` / `month`。全链路联动设计，凭据持久化至 `~/.auto_check_in/config.json`。
+单文件 `scripts/cli.py`（~1350 行），10 个子命令：`setup` / `status` / `config` / `login-openid` / `login` / `tasks` / `detail` / `checkin` / `record` / `month`。全链路联动设计，凭据持久化至 `~/.auto_check_in/config.json`。
+
+`scripts/auto_checkin.sh` — GitHub Actions 执行脚本，编排：写配置 → 登录 → 获取任务 → 打卡 → PushPlus 通知。每次 Action 从 GitHub Secrets 注入凭据全新登录。
+
+### .github/workflows/ — CI/CD
+
+`auto-checkin.yml` — 每天 UTC 13:05（北京时间 21:05）自动触发，支持 workflow_dispatch 手动触发。ubuntu-latest 环境，Python 3.14。
 
 ### 请求必须携带的头
 
@@ -69,6 +75,7 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 ## 项目状态
 
 - ✅ 阶段一/二完成：逆向分析 + CLI 工具（全部功能可用，20 测试通过）
+- ✅ GitHub Actions 部署：每天 21:05 自动打卡 + PushPlus 微信通知
 - ⏳ 阶段三待开始：FastAPI 后端 + 多用户支持 + 定时任务
 - 📋 所有计划见 `docs/plan/`
 
@@ -84,7 +91,8 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 | 指南 | `docs/guides/抓包获取OpenID完全指南.md` | 抓包报文分析 |
 | 指南 | `docs/guides/fiddler-抓包获取OpenID.md` | Fiddler 工具配置 |
 | 指南 | `docs/guides/关键词与概念解释.md` | 术语速查 |
+| 指南 | `docs/guides/GitHub-Actions部署记录.md` | GitHub Actions 部署文档 |
 | 逆向 | `docs/memory/003-逆向分析结果.md` | 源码逐行分析 |
 | 审查 | `docs/review/2026-06-08-深度审查.md` | 最新代码审查 |
 | 日志 | `docs/CHANGELOG.md` | 版本更新记录 |
-| 记忆 | `docs/memory/` | 项目里程碑记忆 |
+| 记忆 | `docs/memory/` | 项目里程碑记忆（001–010） |

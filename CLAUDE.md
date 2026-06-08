@@ -21,6 +21,11 @@ python scripts/cli.py checkin         # One-click check-in
 
 # Cross-validate signing algorithm against JS reference
 node scripts/sign.js /api/test 1700000000000 test_token
+
+# GitHub Actions deployment (see docs/guides/GitHub-Actions部署记录.md)
+# - Auto-trigger: daily 21:05 Beijing time (cron: "5 13 * * *")
+# - Manual trigger: gh workflow run auto-checkin.yml
+# - Notification: PushPlus WeChat push + GitHub built-in email
 ```
 
 No build step — pure Python, run directly. The virtual env is `.venv/` (Python 3.14).
@@ -29,8 +34,9 @@ No build step — pure Python, run directly. The virtual env is `.venv/` (Python
 
 **Purpose:** Automated dormitory check-in for Central South University of Forestry and Technology (中南林业科技大学). Mimics a WeChat mini-program's network requests — from OAuth login through GPS-simulated check-in submission — via a reverse-engineered API client.
 
-**Two-tier design:**
-- **CLI tool** (`scripts/cli.py`, ~1000+ lines) — interactive single-file terminal app. Used daily by end users for manual/one-off check-ins. Supports 10 subcommands with config persistence to `~/.auto_check_in/config.json`.
+**Three-tier design:**
+- **CLI tool** (`scripts/cli.py`, ~1350 lines) — interactive single-file terminal app. Used daily by end users for manual/one-off check-ins. Supports 10 subcommands with config persistence to `~/.auto_check_in/config.json`.
+- **GitHub Actions** (`.github/workflows/auto-checkin.yml` + `scripts/auto_checkin.sh`) — automated daily check-in at 21:05 Beijing time. Bash script handles login → task fetch → check-in → notification lifecycle. PushPlus WeChat push for success/failure notifications.
 - **FastAPI server** (`src/main.py`) — minimal scaffolding for phase 3 (multi-user web service). Not yet functional; only has a root route, CORS, and lifespan-managed `ApiClient` singleton.
 
 **Core module — `src/core/client.py` (`ApiClient`):**
@@ -63,7 +69,9 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 
 ## Project state
 
-**Done (phases 1–2):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 20 pytest cases pass. ANSI terminal UI with 10 subcommands.
+**Done (phase 1–2 + GitHub Actions):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 20 pytest cases pass. ANSI terminal UI with 10 subcommands. GitHub Actions auto-check-in deployed and running daily.
+
+**Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → PushPlus notification. Manual trigger via `workflow_dispatch`.
 
 **Next (phase 3):** Build the multi-user web backend — SQLAlchemy models, FastAPI routes, APScheduler cron jobs. See `docs/plan/` for all plans. The `src/api/`, `src/models/`, `src/services/` directories are empty stubs waiting for implementation.
 
@@ -76,3 +84,4 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 - **Tests are fast and offline** — only unit tests for utils (crypto, sign, geo). No integration tests against the real API. Keep it that way until phase 3 adds a test database.
 - **Chinese comments and output** — source code uses Chinese docstrings. CLI output is Chinese. Windows terminals need `sys.stdout.reconfigure(encoding='utf-8')` (already handled in `cli.py`).
 - **All final responses must be in Chinese** — every reply to the user should be written in Chinese (简体中文). Code, commands, and technical identifiers remain in English, but explanations, summaries, and descriptions must be in Chinese.
+- **GitHub Actions credentials** — all secrets (OpenID, username, password, tokens) live in GitHub Secrets, never in code. `password.txt` is gitignored. The auto-checkin script rebuilds `config.json` from Secrets env vars on each run. PushPlus template uses `template=html` for rich card-style notifications.
