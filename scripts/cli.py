@@ -3,16 +3,17 @@
 Auto Check-In CLI —— 中南林业科技大学自动晚点名打卡工具
 
 Commands:
-  setup          交互式首次配置向导（推荐新用户使用）
-  status         查看登录状态、任务信息、今日打卡记录
-  config         查看或管理本地配置（show / clear）
-  login-openid   OpenID 登录（推荐方式）
-  login          密码登录（备用）
-  tasks          查看打卡任务列表（自动记住任务 ID）
-  detail         查看任务详情（含宿舍坐标、精度上限）
-  checkin        一键打卡签到（自动模拟 GPS 偏移）
-  record         查询当日打卡状态
-  month          按月查询打卡记录
+  setup            交互式首次配置向导（推荐新用户使用）
+  status           查看登录状态、任务信息、今日打卡记录
+  config           查看或管理本地配置（show / clear）
+  login-openid     OpenID 登录（推荐方式）
+  login            密码登录（备用）
+  tasks            查看打卡任务列表（自动记住任务 ID）
+  detail           查看任务详情（含宿舍坐标、精度上限）
+  checkin          一键打卡签到（自动模拟 GPS 偏移）
+  record           查询当日打卡状态
+  month            按月查询打卡记录
+  capture-openid   启动 mitmproxy 自动捕获 OpenID（无需手动翻包）
 
 配置文件:  ~/.auto_check_in/config.json
 文档:      docs/guides/user/CLI教程.md
@@ -36,6 +37,7 @@ from scripts.cli_commands.config_cmd import run as cmd_config
 from scripts.cli_commands.auth import login_openid as cmd_login_openid, login as cmd_login
 from scripts.cli_commands.tasks import tasks as cmd_tasks, detail as cmd_detail
 from scripts.cli_commands.checkin import checkin as cmd_checkin, record as cmd_record, month as cmd_month
+from scripts.cli_commands.capture import run as cmd_capture
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -184,6 +186,16 @@ def _build_parser():
     p_month.add_argument("--task-id", default="", help="任务 ID，留空则自动从配置中读取")
     p_month.add_argument("month", help="月份，格式 YYYY-mm（如 2026-06）")
 
+    # ---- capture-openid ----
+    p_cap = sub.add_parser(
+        "capture-openid", help="🌐 启动 mitmproxy 自动捕获 OpenID（无需手动翻找）",
+        formatter_class=_HLP,
+        description="启动 mitmproxy 代理，手机设代理后打开小程序即可自动捕获 OpenID。",
+        epilog="示例:\n  python scripts/cli.py capture-openid\n"
+               "  python scripts/cli.py capture-openid --port 8888",
+    )
+    p_cap.add_argument("--port", type=int, default=8080, help="代理监听端口，默认 8080")
+
     return parser
 
 
@@ -204,7 +216,8 @@ def _show_welcome():
     print(f"    {c(Style.info, 'month <月>')}     月度汇总统计（如 month 2026-06）")
     print()
     print(c(Style.bold, "  🔧 其他"))
-    print(f"    {c(Style.muted, 'login-openid')}    OpenID 登录（需重新登录时）")
+    print(f"    {c(Style.info, 'capture-openid')}  🌐 自动捕获 OpenID（mitmproxy）")
+    print(f"    {c(Style.muted, 'login-openid')}   OpenID 登录（需重新登录时）")
     print(f"    {c(Style.muted, 'detail')}         查看任务详情（宿舍坐标 / 精度）")
     print(f"    {c(Style.muted, 'config')}         管理本地配置（查看 / 清除）")
     print()
@@ -232,6 +245,7 @@ def main():
         "checkin": cmd_checkin,
         "record": cmd_record,
         "month": cmd_month,
+        "capture-openid": cmd_capture,
     }
 
     try:
