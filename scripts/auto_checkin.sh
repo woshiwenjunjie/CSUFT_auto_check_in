@@ -2,11 +2,10 @@
 # ═══════════════════════════════════════════════════════════
 # Auto Check-In — GitHub Actions 执行脚本
 #
-# 功能：
-#   1. 从 GitHub Secrets 写入配置文件
-#   2. 登录并获取 token
-#   3. 执行打卡
-#   4. 生成通知（PushPlus 微信 / Telegram / GitHub Summary）
+# 通知渠道（按优先级）：
+#   1. Server酱 · 免费微信推送（仅需扫码关注公众号）
+#   2. Telegram Bot
+#   3. GitHub Actions 页面 Summary
 # ═══════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -26,27 +25,25 @@ GITHUB_STEP_SUMMARY="${GITHUB_STEP_SUMMARY:-}"
 # 辅助函数
 # ═══════════════════════════════════════════════════════════
 
-# 从 CLI 输出中提取字段（用 sed 替代 grep -P，兼容性更好）
+# 从 CLI 输出中提取字段
 extract_field() {
-    # $1=输出文本, $2=标签（如 "日期"、"状态"）
     local text="$1" label="$2"
     echo "$text" | sed -n "s/.*${label}:\s*//p" | head -1
 }
 
-# PushPlus 微信推送
-send_pushplus() {
-    local title="$1" content="$2"
-    if [ -n "${PUSHPLUS_TOKEN:-}" ]; then
+# Server酱 · 微信推送（免费，扫码即用）
+send_serverchan() {
+    local title="$1" desp="$2"
+    if [ -n "${SERVERCHAN_KEY:-}" ]; then
         curl -s --connect-timeout 10 --max-time 15 \
-            -X POST "http://www.pushplus.plus/send" \
-            -d "token=${PUSHPLUS_TOKEN}" \
+            -X POST "https://sctapi.ftqq.com/${SERVERCHAN_KEY}.send" \
             -d "title=${title}" \
-            -d "content=${content}" \
+            -d "desp=${desp}" \
             > /dev/null 2>&1 || true
     fi
 }
 
-# Telegram 通知
+# Telegram 通知（备用）
 send_telegram() {
     local text="$1"
     if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
@@ -58,7 +55,14 @@ send_telegram() {
     fi
 }
 
-# GitHub Step Summary（Actions 页面富文本）
+# 统一通知：所有已配置的渠道同时发送
+notify() {
+    local title="$1" desp="$2" telegram_msg="$3"
+    send_serverchan "${title}" "${desp}"
+    send_telegram "${telegram_msg}"
+}
+
+# GitHub Step Summary
 write_github_summary() {
     if [ -n "${GITHUB_STEP_SUMMARY}" ]; then
         printf '%b\n' "$1" >> "$GITHUB_STEP_SUMMARY"
@@ -116,10 +120,8 @@ else
     SUMMARY+="| 登录 | ❌ 失败 |\n"
     ERR=$(echo "$LOGIN_OUTPUT" | grep "登录失败\|error" || echo "凭据无效或网络不通")
 
-    # 纯文本通知（兼容所有 PushPlus 版本）
     NOTIFY="❌ 打卡失败 — 登录阶段\n========\n时间：${RUN_DATE}\n原因：${ERR}"
-    send_pushplus "❌ 打卡失败" "${NOTIFY}"
-    send_telegram "❌ CSUFT 打卡失败 — 登录阶段 | ${ERR}"
+    notify "❌ 打卡失败" "${NOTIFY}" "❌ CSUFT 打卡失败 — 登录阶段"
 
     SUMMARY+="\n**结果**：❌ 登录失败，未执行打卡\n"
     write_github_summary "${SUMMARY}"
@@ -166,8 +168,7 @@ if echo "$CHECKIN_OUTPUT" | grep -qE "打卡成功"; then
     NOTIFY="✅ 打卡成功\n========\n📅 日期：${CHECKIN_DATE}\n📊 状态：${STATUS_RAW}"
     [ "${DISTANCE}" != "-" ] && NOTIFY+="\n📍 距宿舍：${DISTANCE}"
     NOTIFY+="\n⏰ 执行时间：${RUN_DATE}"
-    send_pushplus "✅ 打卡成功" "${NOTIFY}"
-    send_telegram "✅ CSUFT 打卡成功 | ${CHECKIN_DATE} | ${STATUS_RAW} | ${DISTANCE}"
+    notify "✅ 打卡成功" "${NOTIFY}" "✅ CSUFT 打卡成功 | ${CHECKIN_DATE} | ${STATUS_RAW}"
 
 elif echo "$CHECKIN_OUTPUT" | grep -qE "已打卡|重复"; then
     echo "  => 今日已打卡" | tee -a "$LOG_FILE"
@@ -176,7 +177,7 @@ elif echo "$CHECKIN_OUTPUT" | grep -qE "已打卡|重复"; then
     SUMMARY+="\n**结果**：今日已签过到，无需重复 ✌️\n"
 
     NOTIFY="⏰ 今日已打卡\n========\n📅 ${CHECKIN_DATE}\n📊 ${STATUS_RAW}\n\n今天已经打过卡了，不用重复操作~"
-    send_pushplus "⏰ 已打卡" "${NOTIFY}"
+    notify "⏰ 已打卡" "${NOTIFY}" ""
 
 elif echo "$CHECKIN_OUTPUT" | grep -q "超出打卡范围"; then
     echo "  => 超出范围" | tee -a "$LOG_FILE"
@@ -186,8 +187,7 @@ elif echo "$CHECKIN_OUTPUT" | grep -q "超出打卡范围"; then
     SUMMARY+="\n**结果**：⚠️ GPS 距离超出精度范围\n"
 
     NOTIFY="⚠️ 打卡失败 — GPS 超出范围\n========\n📅 ${CHECKIN_DATE}\n📍 距宿舍：${DISTANCE}\n\n💡 本地尝试：python scripts/cli.py checkin --offset 0.0001"
-    send_pushplus "⚠️ GPS 超出范围" "${NOTIFY}"
-    send_telegram "⚠️ CSUFT 超出范围 | ${DISTANCE}"
+    notify "⚠️ GPS 超出范围" "${NOTIFY}" "⚠️ CSUFT 超出范围 | ${DISTANCE}"
 
     write_github_summary "${SUMMARY}"
     exit 1
@@ -199,8 +199,7 @@ elif echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
     SUMMARY+="\n**结果**：❌ Token 已过期，需更新凭据\n"
 
     NOTIFY="❌ 打卡失败 — 凭据过期\n========\n时间：${RUN_DATE}\n\n需在本地重新登录：\npython scripts/cli.py login-openid"
-    send_pushplus "❌ 凭据过期" "${NOTIFY}"
-    send_telegram "❌ CSUFT Token 过期，需手动续期"
+    notify "❌ 凭据过期" "${NOTIFY}" "❌ CSUFT Token 过期，需手动续期"
 
     write_github_summary "${SUMMARY}"
     exit 1
@@ -220,8 +219,7 @@ else
 
     LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
     NOTIFY="❌ 打卡失败\n========\n⏰ ${RUN_DATE}\n\n错误信息：\n${LAST_LINES}"
-    send_pushplus "❌ 打卡失败" "${NOTIFY}"
-    send_telegram "❌ CSUFT 打卡失败 | ${RUN_DATE}"
+    notify "❌ 打卡失败" "${NOTIFY}" "❌ CSUFT 打卡失败 | ${RUN_DATE}"
 
     write_github_summary "${SUMMARY}"
     exit 1
