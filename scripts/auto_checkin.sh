@@ -32,28 +32,39 @@ now_ts() { date '+%H:%M:%S'; }
 
 # ═══════════════════════════════════════════════════════════
 # Server酱 微信推送
-# 使用 printf + data-binary 确保 UTF-8 编码正确
+# 使用 --data-urlencode 确保内容正确编码（支持 Markdown/换行/特殊字符）
 # ═══════════════════════════════════════════════════════════
 send_serverchan() {
     local title="$1" desp="$2"
-    if [ -z "${SERVERCHAN_KEY:-}" ]; then return; fi
+    if [ -z "${SERVERCHAN_KEY:-}" ]; then
+        echo "  [通知] SERVERCHAN_KEY 未配置，跳过 Server酱" | tee -a "$LOG_FILE"
+        return
+    fi
 
-    printf 'title=%s&desp=%s' "${title}" "${desp}" \
-        | curl -s --connect-timeout 10 --max-time 15 \
-            -X POST "https://sctapi.ftqq.com/${SERVERCHAN_KEY}.send" \
-            --data-binary @- \
-            -H "Content-Type: application/x-www-form-urlencoded; charset=utf-8" \
-            > /dev/null 2>&1 || true
+    echo "  [通知] 正在发送 Server酱 推送..." | tee -a "$LOG_FILE"
+    local resp http_code
+    resp=$(curl -s -w "\n%{http_code}" --connect-timeout 10 --max-time 15 \
+        -X POST "https://sctapi.ftqq.com/${SERVERCHAN_KEY}.send" \
+        --data-urlencode "title=${title}" \
+        --data-urlencode "desp=${desp}" \
+        2>&1) || true
+    http_code=$(echo "$resp" | tail -1)
+    local body=$(echo "$resp" | sed '$d')
+
+    echo "  [通知] Server酱 HTTP ${http_code}: ${body}" | tee -a "$LOG_FILE"
 }
 
 send_telegram() {
     local text="$1"
     if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then return; fi
-    curl -s --connect-timeout 10 --max-time 15 \
+    echo "  [通知] 正在发送 Telegram..." | tee -a "$LOG_FILE"
+    local resp
+    resp=$(curl -s --connect-timeout 10 --max-time 15 \
         -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
-        -d "chat_id=${TG_CHAT_ID}" \
-        -d "text=${text}" \
-        > /dev/null 2>&1 || true
+        --data-urlencode "chat_id=${TG_CHAT_ID}" \
+        --data-urlencode "text=${text}" \
+        2>&1) || true
+    echo "  [通知] Telegram 响应: ${resp}" | tee -a "$LOG_FILE"
 }
 
 notify() {
@@ -78,6 +89,22 @@ echo "  CSUFT 自动晚点名 · $(now_ts)" | tee -a "$LOG_FILE"
 echo "========================================" | tee -a "$LOG_FILE"
 
 SUMMARY="## 🏠 CSUFT 晚点名 · ${RUN_DATE_SHORT}\n\n"
+
+# ── 通知渠道检查 ──────────────────────────────────────
+echo "" | tee -a "$LOG_FILE"
+echo "  通知渠道:" | tee -a "$LOG_FILE"
+if [ -n "${SERVERCHAN_KEY:-}" ]; then
+    echo "    ✅ Server酱 (微信) 已配置" | tee -a "$LOG_FILE"
+else
+    echo "    ⚠️  Server酱 未配置 — 不会发送微信推送" | tee -a "$LOG_FILE"
+    echo "    配置方法: GitHub Secrets → SERVERCHAN_KEY → sct.ftqq.com 扫码获取" | tee -a "$LOG_FILE"
+fi
+if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
+    echo "    ✅ Telegram 已配置" | tee -a "$LOG_FILE"
+else
+    echo "    ⚠️  Telegram 未配置（可选备用渠道）" | tee -a "$LOG_FILE"
+fi
+echo "" | tee -a "$LOG_FILE"
 
 # ── [1/5] 配置 ────────────────────────────────────────
 CONFIG_DIR="$HOME/.auto_check_in"

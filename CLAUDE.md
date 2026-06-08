@@ -71,7 +71,7 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 
 **Done (phase 1–2 + GitHub Actions):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 20 pytest cases pass. ANSI terminal UI with 10 subcommands. GitHub Actions auto-check-in deployed and running daily.
 
-**Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → notification via Server酱 + Telegram. Manual trigger via `workflow_dispatch`.
+**Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → notification via Server酱 + Telegram. Manual trigger via `workflow_dispatch`. v0.8.1 fixed a silent notification failure caused by missing URL encoding in `send_serverchan()` — always use `--data-urlencode` for form data containing Markdown/special characters, and never discard API responses with `> /dev/null 2>&1`.
 
 **Next (phase 3):** Build the multi-user web backend — SQLAlchemy models, FastAPI routes, APScheduler cron jobs. See `docs/plan/` for all plans. The `src/api/`, `src/models/`, `src/services/` directories are empty stubs waiting for implementation.
 

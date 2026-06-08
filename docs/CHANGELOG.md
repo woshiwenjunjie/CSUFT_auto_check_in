@@ -1,5 +1,23 @@
 # 更新日志
 
+## [0.8.1] — 2026-06-08
+
+### Server酱 通知静默失败修复
+
+**根因**：`send_serverchan()` 两个隐蔽 bug 导致通知静默失败：
+1. `printf + --data-binary @-` 发送 Markdown 内容时未做 URL 编码，换行/管道符等特殊字符导致 Server酱 API 解析失败
+2. `> /dev/null 2>&1 || true` 丢弃了 curl 的所有输出（包括错误响应），日志毫无痕迹
+
+**修复**：
+- `send_serverchan()` — 改用 `--data-urlencode` 自动 URL 编码 `title` 和 `desp`
+- `send_serverchan()` — 捕获 HTTP 状态码 + 响应体并写入日志，不再静默丢弃
+- `send_telegram()` — 同样改用 `--data-urlencode` + 响应日志
+- 脚本启动时新增通知渠道状态检查（✅ 已配置 / ⚠️ 未配置 + 配置指引）
+
+### 文档完善
+- `docs/guides/dev/GitHub-Actions部署记录.md` — 新增通知调试章节（错误码表、排查步骤、旧版脚本的坑）
+- 结果判断表更新：所有结果均发通知，无一例外
+
 ## [0.8.0] — 2026-06-08
 
 ### GitHub Actions 自动部署上线

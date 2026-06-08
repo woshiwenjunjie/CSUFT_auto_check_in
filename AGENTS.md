@@ -75,7 +75,7 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 ## 项目状态
 
 - ✅ 阶段一/二完成：逆向分析 + CLI 工具（全部功能可用，20 测试通过）
-- ✅ GitHub Actions 部署：每天 21:05 自动打卡 + Server酱微信通知
+- ✅ GitHub Actions 部署：每天 21:05 自动打卡 + Server酱微信通知（v0.8.1 修复静默失败）
 - ⏳ 阶段三待开始：FastAPI 后端 + 多用户支持 + 定时任务
 - 📋 所有计划见 `docs/plan/`
 
@@ -123,4 +123,4 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 | 日志 | `docs/CHANGELOG.md` | 版本更新记录 |
 | 逆向 | `docs/memory/003-逆向分析结果.md` | 小程序源码逆向分析 |
 | 审查 | `docs/review/` | 代码审查报告（3 份） |
-| 记忆 | `docs/memory/` | 项目里程碑（001–011） |
+| 记忆 | `docs/memory/` | 项目里程碑（001–012） |
