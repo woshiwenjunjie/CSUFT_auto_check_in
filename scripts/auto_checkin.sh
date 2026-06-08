@@ -9,29 +9,13 @@
 set -euo pipefail
 
 # ═══════════════════════════════════════════════════════════
-# 北京时间 (UTC+8) — 用 Python 获取，不依赖系统时区
-# bash date 在 GitHub Actions 上无论设什么 TZ 都不可靠
+# 系统时区由 GitHub Actions workflow 的 TZ=Asia/Shanghai 统一设置
+# bash date / Python datetime.now() 均自动使用系统本地时间 = 北京时间
 # ═══════════════════════════════════════════════════════════
-_beijing_now() {
-    # 输出: YYYY-mm-dd HH:MM:SS  YYYY-mm-dd  HH:MM:SS（三列）
-    python -c "
-from datetime import datetime, timezone, timedelta
-tz = timezone(timedelta(hours=8))
-n = datetime.now(tz)
-print(n.strftime('%Y-%m-%d %H:%M:%S'), n.strftime('%Y-%m-%d'), n.strftime('%H:%M:%S'))
-"
-}
 
 LOG_FILE="/tmp/auto_checkin_output.txt"
-_beijing=$(_beijing_now)
-RUN_DATE=$(echo "$_beijing" | awk '{print $1 " " $2}')
-RUN_DATE_SHORT=$(echo "$_beijing" | awk '{print $3}')
-
-# 调试：打印所有时间来源
-echo "DEBUG _beijing_now 原始输出: \"$_beijing\"" | tee -a "$LOG_FILE"
-echo "DEBUG RUN_DATE:       \"$RUN_DATE\"" | tee -a "$LOG_FILE"
-echo "DEBUG RUN_DATE_SHORT: \"$RUN_DATE_SHORT\"" | tee -a "$LOG_FILE"
-echo "DEBUG 当前系统: $(date -u 2>/dev/null || echo 'date不可用')" | tee -a "$LOG_FILE"
+RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
+RUN_DATE_SHORT=$(date '+%Y-%m-%d')
 
 GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-unknown}"
@@ -54,7 +38,7 @@ parse_result_field() {
     echo "$text" | grep -oP "${field}=\K[^ ]*" | head -1
 }
 
-now_ts() { _beijing_now | awk '{print $4}'; }
+now_ts() { date '+%H:%M:%S'; }
 
 
 # ═══════════════════════════════════════════════════════════

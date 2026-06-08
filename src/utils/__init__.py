@@ -1,4 +1,1 @@
-from datetime import timezone, timedelta
-
-# 北京时间 (UTC+8)，项目全局统一使用，不受系统时区影响
-BEIJING_TZ = timezone(timedelta(hours=8))
+# 工具模块 — 时间使用系统时区（GitHub Actions 通过 TZ=Asia/Shanghai 设为北京时间）

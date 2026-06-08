@@ -35,7 +35,6 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from src.core.client import ApiClient
-from src.utils import BEIJING_TZ
 from src.utils.crypto import md5
 from src.utils.geo import haversine, random_offset
 
@@ -488,7 +487,7 @@ def cmd_status(args):
 
             # Today's record
             if task_id:
-                today = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+                today = datetime.now().strftime("%Y-%m-%d")
                 rec = client.get_one_record(task_id, today)
                 print()
                 if _token_expired(rec):
@@ -895,7 +894,7 @@ def cmd_checkin(args):
     dorm_lng = float(dorm.get("locationLng", 0))
     accuracy = float(td.get("locationAccuracy", 100))
     is_late = bool(args.late_date)
-    sign_date = args.late_date or datetime.now(BEIJING_TZ).strftime("%Y-%m-%d")
+    sign_date = args.late_date or datetime.now().strftime("%Y-%m-%d")
 
     if args.lat is not None and args.lng is not None:
         cur_lat, cur_lng = float(args.lat), float(args.lng)

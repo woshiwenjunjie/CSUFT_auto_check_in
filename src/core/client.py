@@ -4,8 +4,6 @@ import os
 import time
 import certifi
 import httpx
-from datetime import datetime
-from src.utils import BEIJING_TZ
 from src.utils.crypto import md5
 from src.utils.sign import generate_sign, generate_basic_auth
 
@@ -57,7 +55,7 @@ class ApiClient:
 
         no_auth=True 时跳过 Basic Auth（用于 captcha 等不需要认证的端点）
         """
-        ts = int(datetime.now(BEIJING_TZ).timestamp() * 1000)
+        ts = int(time.time() * 1000)
         h = {
             "Content-Type": "application/json",
             "charset": "utf-8",
