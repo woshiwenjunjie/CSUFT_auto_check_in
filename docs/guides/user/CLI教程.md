@@ -1,6 +1,6 @@
 # Auto Check-In CLI 使用教程
 
-> 适用版本：v0.7.1+  
+> 适用版本：v0.8.1  
 > 项目：中南林业科技大学自动晚点名打卡工具
 
 ---
@@ -457,6 +457,9 @@ python scripts/cli.py login-openid <你的OpenID> --bind 0
 
 ## 参考资料
 
-- `docs/guides/user/完整操作指南.md` — 完整操作教程（含抓包环境搭建）
+- `docs/guides/user/完整操作指南.md` — 从零开始的完整教程（含抓包、GitHub Actions 部署）
+- `docs/guides/user/GitHub-Actions自动打卡教程.md` — GitHub Actions 自动打卡教程（推荐部署方式）
+- `docs/guides/user/Server酱配置教程.md` — Server酱 微信推送配置
+- `docs/guides/dev/签名算法详解.md` — 签名算法深入讲解
 - `docs/CHANGELOG.md` — 版本更新记录
 - `AGENTS.md` — 项目整体指南

@@ -97,6 +97,8 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 |------|------|
 | `完整操作指南.md` | 从零到打卡的完整教程 |
 | `CLI教程.md` | CLI 详细用法（10 个子命令） |
+| `GitHub-Actions自动打卡教程.md` | GitHub Actions 自动打卡部署教程 |
+| `Server酱配置教程.md` | Server酱 微信推送配置详解 |
 | `抓包获取OpenID完全指南.md` | 抓包报文分析与获取流程 |
 | `fiddler-抓包获取OpenID.md` | Fiddler 抓包工具配置 |
 | `关键词与概念解释.md` | 术语速查 |
@@ -107,6 +109,8 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 |------|------|
 | `提取小程序wxapkg.md` | 微信小程序反编译与源码提取 |
 | `GitHub-Actions部署记录.md` | GitHub Actions 自动打卡部署文档 |
+| `签名算法详解.md` | FlySource-sign 签名算法深入讲解 |
+| `项目架构与开发指南.md` | 项目架构、模块设计、数据流、扩展指南 |
 
 ### 计划 `docs/plan/`
 
@@ -123,4 +127,4 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android  ← 伪装微信
 | 日志 | `docs/CHANGELOG.md` | 版本更新记录 |
 | 逆向 | `docs/memory/003-逆向分析结果.md` | 小程序源码逆向分析 |
 | 审查 | `docs/review/` | 代码审查报告（3 份） |
-| 记忆 | `docs/memory/` | 项目里程碑（001–012） |
+| 记忆 | `docs/memory/` | 项目里程碑（001–013） |

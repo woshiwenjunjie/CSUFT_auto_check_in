@@ -14,9 +14,27 @@
 - `send_telegram()` — 同样改用 `--data-urlencode` + 响应日志
 - 脚本启动时新增通知渠道状态检查（✅ 已配置 / ⚠️ 未配置 + 配置指引）
 
+### 时区修复
+- Bash: `export TZ='CST-8'`（POSIX 标准格式，不依赖 zoneinfo 文件）→ 之前 `TZ='Asia/Shanghai'` 在部分环境无效
+- Python: `datetime.now()` → `datetime.now(timezone(timedelta(hours=8)))` → 硬编码 UTC+8，不受系统时区影响
+- Workflow 保活步骤同步使用 `TZ='CST-8'`
+
+### 保活机制
+- 新增 `.keepalive` 每日 commit，防止 60 天无活动被 GitHub 停用定时任务
+- commit 带 `[skip ci]` 防止递归触发
+- Workflow 新增 `permissions: contents: write`
+
 ### 文档完善
-- `docs/guides/dev/GitHub-Actions部署记录.md` — 新增通知调试章节（错误码表、排查步骤、旧版脚本的坑）
-- 结果判断表更新：所有结果均发通知，无一例外
+- **新增** `docs/guides/user/Server酱配置教程.md` — Server酱 从零配置教程
+- **新增** `docs/guides/user/GitHub-Actions自动打卡教程.md` — GitHub Actions 用户教程
+- **新增** `docs/guides/dev/签名算法详解.md` — FlySource-sign 深入讲解（双语实现、交叉验证、常见陷阱）
+- **新增** `docs/guides/dev/项目架构与开发指南.md` — 架构全景、模块设计、数据流、扩展指南
+- `docs/guides/user/关键词与概念解释.md` — 新增"通知与自动化"章节（Server酱、GitHub Actions、保活、时区、Telegram）
+- `docs/guides/user/完整操作指南.md` — 新增第 5 章 GitHub Actions + 参考资料更新
+- `docs/guides/user/CLI教程.md` — 版本更新 + 新指南交叉引用
+- `docs/guides/dev/GitHub-Actions部署记录.md` — 新增通知调试章节（错误码表、排查步骤）
+- `AGENTS.md` — 文档索引更新（11 份指南）
+- `docs/memory/` — 新增 012（通知修复）+ 013（时区修复）
 
 ## [0.8.0] — 2026-06-08
 
