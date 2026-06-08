@@ -3,7 +3,10 @@ import os
 import time
 import certifi
 import httpx
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 北京时间 (UTC+8)，用于签名时间戳，不受系统时区影响
+_BEIJING_TZ = timezone(timedelta(hours=8))
 from typing import Optional
 from src.utils.crypto import md5
 from src.utils.sign import generate_sign, generate_basic_auth
@@ -55,7 +58,7 @@ class ApiClient:
 
         no_auth=True 时跳过 Basic Auth（用于 captcha 等不需要认证的端点）
         """
-        ts = int(datetime.now().timestamp() * 1000)
+        ts = int(datetime.now(_BEIJING_TZ).timestamp() * 1000)
         h = {
             "Content-Type": "application/json",
             "charset": "utf-8",

@@ -24,7 +24,10 @@ import os
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# 北京时间 (UTC+8)，用于所有 datetime.now(_BEIJING_TZ) 调用，不受系统时区影响
+_BEIJING_TZ = timezone(timedelta(hours=8))
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -487,7 +490,7 @@ def cmd_status(args):
 
             # Today's record
             if task_id:
-                today = datetime.now().strftime("%Y-%m-%d")
+                today = datetime.now(_BEIJING_TZ).strftime("%Y-%m-%d")
                 rec = client.get_one_record(task_id, today)
                 print()
                 if _token_expired(rec):
@@ -894,7 +897,7 @@ def cmd_checkin(args):
     dorm_lng = float(dorm.get("locationLng", 0))
     accuracy = float(td.get("locationAccuracy", 100))
     is_late = bool(args.late_date)
-    sign_date = args.late_date or datetime.now().strftime("%Y-%m-%d")
+    sign_date = args.late_date or datetime.now(_BEIJING_TZ).strftime("%Y-%m-%d")
 
     if args.lat is not None and args.lng is not None:
         cur_lat, cur_lng = float(args.lat), float(args.lng)
