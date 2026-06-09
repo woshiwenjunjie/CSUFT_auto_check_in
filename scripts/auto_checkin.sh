@@ -207,7 +207,7 @@ case "$STATUS_RAW" in
         SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n"
         SUMMARY+="| 状态 | ${STATUS_RAW} |\n"
         [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
-        SUMMARY+="\n⏰ ${RUN_DATE} UTC"
+        SUMMARY+="\n⏰ ${RUN_DATE} 北京时间"
 
         BODY="## ✅ 晚点名打卡 · 成功
 
@@ -218,7 +218,7 @@ case "$STATUS_RAW" in
         BODY+="
 
 ---
-🕐 ${RUN_DATE} UTC"
+🕐 ${RUN_DATE} 北京时间"
 
         notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
         ;;
@@ -262,8 +262,8 @@ case "$STATUS_RAW" in
 
 **${RUN_DATE}** — 不在打卡窗口内
 
-> 窗口：**13:00–14:30 UTC**（北京时间 21:00–22:30）
-> 任务定时 UTC 13:05 自动执行"
+> 窗口：**21:00–22:30 北京时间**（UTC 13:00–14:30）
+> 任务定时 21:05 北京时间 自动执行"
 
             notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
 
@@ -291,7 +291,7 @@ ${LAST_LINES}
 esac
 
 # ── 成功路径收尾 ────────────────────────────────────
-SUMMARY+="\n---\n⏰ ${RUN_DATE} UTC · [查看日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
+SUMMARY+="\n---\n⏰ ${RUN_DATE} 北京时间 · [查看日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
 write_github_summary "${SUMMARY}"
 
 echo "========================================" | tee -a "$LOG_FILE"
