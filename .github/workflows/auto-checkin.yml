@@ -8,7 +8,8 @@ on:
 env:
   PYTHON_VERSION: "3.14"
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"   # 提前适配 Node.js 24，消除弃用警告
-  TZ: Asia/Shanghai                            # 系统时区设为北京时间，Python/bush 自动使用
+  # 不再设置 TZ 环境变量 — 可能导致 GitHub Actions cron 调度器误用北京时区
+  # 所有时间显示由 Python timezone(timedelta(hours=8)) 显式处理
 
 permissions:
   contents: write          # 允许保活步骤 git push
