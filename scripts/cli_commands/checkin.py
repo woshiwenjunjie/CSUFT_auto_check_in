@@ -56,7 +56,9 @@ def checkin(args):
     token = cfg.get("token", "")
     if not token:
         print()
-        print(c(Style.error, "  请先登录: python scripts/cli.py login-openid"))
+        print(c(Style.error, "  请先登录"))
+        print(c(Style.muted, "    python scripts/cli.py login-openid     (微信 OpenID)"))
+        print(c(Style.muted, "    python scripts/cli.py login-webvpn    (WebVPN token)"))
         return
     tid = resolve_task_id(args, cfg)
     if not tid:
@@ -90,14 +92,24 @@ def checkin(args):
     if args.lat is not None and args.lng is not None:
         cur_lat, cur_lng = float(args.lat), float(args.lng)
         source = "手动指定"
+        dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
     elif args.lat is not None or args.lng is not None:
         print(c(Style.error, "  --lat 和 --lng 必须同时指定"))
         return
     else:
-        cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, args.offset)
-        source = f"模拟偏移 ±{args.offset}°"
+        cur_offset = args.offset
+        for attempt in range(6):
+            cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, cur_offset)
+            dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
+            if dist <= accuracy:
+                source = f"模拟偏移 ±{cur_offset}°" + (f" (第{attempt + 1}次尝试)" if attempt > 0 else "")
+                break
+            cur_offset /= 2
+        else:
+            warn_box(f"重试 5 次后仍超出打卡范围  {dist:.0f}m > {accuracy}m")
+            print(c(Style.muted, "  请指定 --lat --lng 手动设置坐标，或使用 --force 强制提交"))
+            return
 
-    dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
     loc_accuracy = f"{dist:.1f}"
 
     print()

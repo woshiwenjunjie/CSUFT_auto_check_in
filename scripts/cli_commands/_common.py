@@ -6,9 +6,13 @@ from scripts.cli_config import load_config
 
 
 def get_client():
-    """Build an ApiClient from saved token, returning (client, config_dict)."""
+    """Build an ApiClient from saved token, returning (client, config_dict).
+
+    自动从配置中读取 client_mode（wxapp/web），确保使用正确的客户端凭据。
+    """
     cfg = load_config()
-    return ApiClient(cfg.get("token", "")), cfg
+    mode = cfg.get("client_mode", "wxapp")
+    return ApiClient(cfg.get("token", ""), client_mode=mode), cfg
 
 
 def resolve_task_id(args, cfg: dict) -> str:
@@ -33,4 +37,8 @@ def token_expired(resp: dict) -> bool:
 
 def login_expired_hint():
     """Print a consistent re-login suggestion."""
-    print(c(Style.muted, "  请重新登录: python scripts/cli.py login-openid"))
+    cfg = load_config()
+    if cfg.get("client_mode") == "web":
+        print(c(Style.muted, "  请重新登录: python scripts/cli.py login-webvpn <token>"))
+    else:
+        print(c(Style.muted, "  请重新登录: python scripts/cli.py login-openid <OpenID> <学号>"))

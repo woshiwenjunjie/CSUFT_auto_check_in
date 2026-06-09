@@ -13,7 +13,8 @@ Commands:
   checkin          一键打卡签到（自动模拟 GPS 偏移）
   record           查询当日打卡状态
   month            按月查询打卡记录
-  capture-openid   启动 mitmproxy 自动捕获 OpenID（无需手动翻包）
+   capture-openid   启动 mitmproxy 自动捕获 OpenID（无需手动翻包）
+   login-webvpn    WebVPN 登录（从浏览器复制 token，绕过 OpenID）
 
 配置文件:  ~/.auto_check_in/config.json
 文档:      docs/guides/user/CLI教程.md
@@ -34,7 +35,7 @@ from scripts.cli_config import CONFIG_FILE
 from scripts.cli_commands.setup import run as cmd_setup
 from scripts.cli_commands.status import run as cmd_status
 from scripts.cli_commands.config_cmd import run as cmd_config
-from scripts.cli_commands.auth import login_openid as cmd_login_openid, login as cmd_login
+from scripts.cli_commands.auth import login_openid as cmd_login_openid, login as cmd_login, login_webvpn as cmd_login_webvpn
 from scripts.cli_commands.tasks import tasks as cmd_tasks, detail as cmd_detail
 from scripts.cli_commands.checkin import checkin as cmd_checkin, record as cmd_record, month as cmd_month
 from scripts.cli_commands.capture import run as cmd_capture
@@ -112,6 +113,19 @@ def _build_parser():
                           help="0 = 仅登录不绑定  |  1 = 绑定 OpenID 与学号（默认）")
     p_openid.add_argument("--save-password", action="store_true", help="将密码保存到本地配置文件")
     p_openid.add_argument("--force-input", action="store_true", help="忽略已保存的密码，强制手动输入")
+
+    # ---- login-webvpn ----
+    p_webvpn = sub.add_parser(
+        "login-webvpn", help="🌐 WebVPN 登录（从浏览器复制 token，绕过 OpenID 抓包）",
+        formatter_class=_HLP,
+        description="将 WebVPN 打卡页 API 请求的 flysource-auth 值粘贴进来，\n"
+                    "验证有效后自动保存到配置。从此告别 OpenID 抓包。",
+        epilog="示例:\n"
+               "  python scripts/cli.py login-webvpn \"bearer eyJ...\"\n"
+               "  python scripts/cli.py login-webvpn \"bearer eyJ...\" 2023XXXXXX",
+    )
+    p_webvpn.add_argument("token", help="从 WebVPN 页面 API 请求头 flysource-auth 复制的值")
+    p_webvpn.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
 
     # ---- login ----
     p_login = sub.add_parser(
@@ -216,6 +230,7 @@ def _show_welcome():
     print(f"    {c(Style.info, 'month <月>')}     月度汇总统计（如 month 2026-06）")
     print()
     print(c(Style.bold, "  🔧 其他"))
+    print(f"    {c(Style.info, 'login-webvpn')}    🌐 WebVPN 登录（从浏览器复制 token，绕过 OpenID）")
     print(f"    {c(Style.info, 'capture-openid')}  🌐 自动捕获 OpenID（mitmproxy）")
     print(f"    {c(Style.muted, 'login-openid')}   OpenID 登录（需重新登录时）")
     print(f"    {c(Style.muted, 'detail')}         查看任务详情（宿舍坐标 / 精度）")
@@ -240,6 +255,7 @@ def main():
         "config": cmd_config,
         "login": cmd_login,
         "login-openid": cmd_login_openid,
+        "login-webvpn": cmd_login_webvpn,
         "tasks": cmd_tasks,
         "detail": cmd_detail,
         "checkin": cmd_checkin,

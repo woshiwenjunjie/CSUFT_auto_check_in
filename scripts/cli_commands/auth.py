@@ -1,4 +1,4 @@
-"""auth — OpenID 登录 + 密码登录"""
+"""auth — OpenID 登录 + 密码登录 + WebVPN 登录"""
 
 from src.core.client import ApiClient
 from scripts.cli_ui import Style, c, bullet, kv, Spinner
@@ -101,3 +101,56 @@ def login(args):
             "登录失败: " + resp.get("error_description", resp.get("msg", "未知错误")),
             ok=False,
         )
+
+
+def login_webvpn(args):
+    """WebVPN 登录 — 从浏览器拷 token 验证并保存
+
+    从 WebVPN 平安打卡页面的 API 请求头 flysource-auth 中复制 access_token
+    验证有效后自动保存到配置。
+    """
+    cfg = load_config()
+    token = args.token or ""
+
+    if not token:
+        print()
+        print(c(Style.error, "  请提供 access_token"))
+        print(c(Style.muted, "  在 WebVPN 打卡页 F12 → Network → 任意 API 请求"))
+        print(c(Style.muted, "  从 Request Headers 中复制 flysource-auth 的值"))
+        return
+
+    if not token.startswith("bearer ") and not token.startswith("Bearer "):
+        token = "bearer " + token
+
+    username = args.username or cfg.get("username", "")
+    if not username:
+        print()
+        username = input("  学号: ").strip()
+
+    print()
+    bullet("正在验证 token ...")
+    client = ApiClient(token=token, client_mode="web")
+    try:
+        tasks = client.get_task_list(size=1)
+    except Exception as exc:
+        print()
+        bullet(f"验证失败: 网络错误或 token 无效 — {exc}", ok=False)
+        return
+
+    if tasks.get("success") or tasks.get("code") == 200 or tasks.get("data"):
+        cfg["token"] = token
+        cfg["username"] = username
+        cfg["tenant_id"] = "000000"
+        cfg["client_mode"] = "web"
+        save_config(cfg)
+        print()
+        bullet("token 验证成功")
+        kv("学号", _mask(username, 3))
+        kv("Token", _mask(token, 8))
+        print()
+        print(c(Style.muted, "  下一步: python scripts/cli.py tasks"))
+    else:
+        err = tasks.get("msg", "token 无效或已过期")
+        print()
+        bullet(f"验证失败: {err}", ok=False)
+        print(c(Style.muted, "  请重新从 WebVPN 页面复制 flysource-auth 的值"))

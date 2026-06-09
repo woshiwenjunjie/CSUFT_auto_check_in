@@ -8,13 +8,15 @@
 2. **凭据安全** — 显示脱敏（`_mask`），密码用 `secure_input`，不写死凭据
 3. **交叉验证** — 签名算法用 JS 原版（`scripts/sign.js`）和 Python 实现互验
 4. **文档同步** — 架构/功能变更时更新 CHANGELOG + memory + AGENTS.md
+5. **两个客户端模式** — `wxapp`（微信小程序）和 `web`（WebVPN），通过 `client_mode` 切换，Referer/User-Agent/Basic Auth 自动匹配
 
 ## 快速命令
 
 ```powershell
 .\.venv\Scripts\activate               # 激活虚拟环境
 python -m pytest tests/ -v             # 运行全部 31 个测试
-python scripts/cli.py <setup|status|tasks|checkin|config|detail|record|month|login|login-openid|capture-openid>
+python scripts/cli.py <setup|status|tasks|checkin|config|detail|record|month|login|login-openid|login-webvpn|capture-openid>
+python scripts/cli.py login-webvpn     # WebVPN token 验证+保存（绕过 OpenID）
 python scripts/cli.py capture-openid   # 一键启动 mitmproxy 自动捕获 OpenID
 node scripts/sign.js /api/test 1700000000000 test_token  # 签名交叉验证
 pip install mitmproxy                  # 首次使用 capture-openid 前先装依赖
@@ -54,7 +56,7 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android
 | `src/main.py` | FastAPI 脚手架（阶段三） |
 | `scripts/cli.py` | argparse 入口，dispatch 到 cli_commands/ |
 | `scripts/capture_addon.py` | mitmproxy addon — 自动捕获 OpenID |
-| `scripts/cli_commands/` | 子命令：`auth.py` `checkin.py` `tasks.py` `status.py` `config_cmd.py` `setup.py` `capture.py` + `_common.py` |
+| `scripts/cli_commands/` | 子命令：`auth.py`（含 login-openid/login/login-webvpn） `checkin.py` `tasks.py` `status.py` `config_cmd.py` `setup.py` `capture.py` + `_common.py` |
 | `scripts/cli_config.py` | 配置 ~/.auto_check_in/config.json，密码 `$obf:<base64>` 混淆存储 |
 | `scripts/cli_ui.py` | ANSI 样式、Spinner、彩色终端输出 |
 | `tests/` | 6 个文件 31 个测试（crypto 6 + sign 6 + geo 8 + config 6 + cross_validate 5） |
@@ -65,9 +67,13 @@ User-Agent: ...MicroMessenger...MiniProgramEnv/android
 
 | 凭据 | 默认值 |
 |------|--------|
-| `FLYSOURCE_CLIENT_ID` | `flysource_wise_wxapp` |
-| `FLYSOURCE_CLIENT_SECRET` | `DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe` |
+| `FLYSOURCE_CLIENT_ID` | `flysource_wise_wxapp`（微信小程序）/ `flysource_wise_app`（WebVPN） |
+| `FLYSOURCE_CLIENT_SECRET` | `DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe`（小程序）/ `DA788asdUDjnasd_flysource_dsdadDAIUiuwqe`（WebVPN） |
 | `CHECKIN_BASE_URL` | `https://simp.csuft.edu.cn` |
+
+### ⚠️ UTC 时间陷阱（重要）
+
+flySource 服务器所有时间判定基于 **UTC**。`signStartTime`/`signEndTime` 是 UTC 时刻，窗口实际为 **UTC 13:00–14:30**（对应北京时间 21:00–22:30）。不要假设 API 返回的时间是本地时间，任何需要时区的显示都要做 UTC+8 转换。
 
 ### GitHub Actions
 

@@ -5,7 +5,7 @@ import time
 import certifi
 import httpx
 from src.utils.crypto import md5
-from src.utils.sign import generate_sign, generate_basic_auth
+from src.utils.sign import generate_sign, generate_basic_auth, set_client_credentials
 
 
 class ApiClient:
@@ -26,17 +26,30 @@ class ApiClient:
         "MMWEBID/8631 MicroMessenger/8.0.72.3100(0x28004850) WeChat/arm64 "
         "Weixin NetType/WIFI Language/zh_CN ABI/arm64 MiniProgramEnv/android"
     )
+    WEB_REFERER = os.getenv("WEB_REFERER", "https://simp.csuft.edu.cn/wise/")
+    WEB_USER_AGENT = os.getenv("WEB_USER_AGENT",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0"
+    )
 
-    def __init__(self, token: str = "", base_url: str = ""):
+    def __init__(self, token: str = "", base_url: str = "", client_mode: str = "wxapp"):
         """初始化客户端
 
         token: 登录后获得的 access_token（空字符串则只发 Basic 认证）
         base_url: API 基址，默认从环境变量 CHECKIN_BASE_URL 读取，兜底硬编码
+        client_mode: 客户端凭据模式，"wxapp"（微信小程序）或 "web"（WebVPN 版）
         """
         self.token = token
         self.base_url = base_url or os.getenv("CHECKIN_BASE_URL", "https://simp.csuft.edu.cn")
+        self.client_mode = client_mode
+        set_client_credentials(client_mode)
+        if client_mode == "web":
+            self._referer = self.WEB_REFERER
+            self._user_agent = self.WEB_USER_AGENT
+        else:
+            self._referer = f"https://servicewechat.com/{self.WX_APP_ID}/{self.WX_VERSION}/page-frame.html"
+            self._user_agent = self.WX_USER_AGENT
         self._client = httpx.Client(timeout=30, verify=certifi.where(), trust_env=False)
-        self._referer = f"https://servicewechat.com/{self.WX_APP_ID}/{self.WX_VERSION}/page-frame.html"
         atexit.register(self.close)  # 确保进程退出时释放连接池（CLI 短生命周期场景）
 
     def __enter__(self):
@@ -60,7 +73,7 @@ class ApiClient:
             "Content-Type": "application/json",
             "charset": "utf-8",
             "Referer": self._referer,
-            "User-Agent": self.WX_USER_AGENT,
+            "User-Agent": self._user_agent,
         }
         if not no_auth:
             h["Authorization"] = generate_basic_auth()

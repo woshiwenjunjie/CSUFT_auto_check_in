@@ -50,6 +50,7 @@ def run(args):
     print(c(Style.bold, "  凭据"))
     kv("学号", _mask(cfg.get("username"), 3) or "(未设置)")
     kv("OpenID", _mask(cfg.get("openid")) or "(未设置)")
+    kv("客户端模式", "WebVPN" if cfg.get("client_mode") == "web" else "微信小程序")
     kv("密码", f"已保存 {_mask(get_password(cfg))}" if get_password(cfg) else "(未保存)")
     kv("Token", _mask(cfg.get("token"), 8) or "(未登录)")
     kv("租户", cfg.get("tenant_id", "000000"))

@@ -2,8 +2,30 @@ import os
 from src.utils.crypto import md5, b64_encode
 
 # 飞源认证客户端凭据，可通过环境变量覆盖（用于不同部署环境）
-CLIENT_ID = os.getenv("FLYSOURCE_CLIENT_ID", "flysource_wise_wxapp")
-CLIENT_SECRET = os.getenv("FLYSOURCE_CLIENT_SECRET", "DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe")
+# 微信小程序版
+WX_CLIENT_ID = "flysource_wise_wxapp"
+WX_CLIENT_SECRET = "DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe"
+# WebVPN 版
+WEB_CLIENT_ID = "flysource_wise_app"
+WEB_CLIENT_SECRET = "DA788asdUDjnasd_flysource_dsdadDAIUiuwqe"
+
+CLIENT_ID = os.getenv("FLYSOURCE_CLIENT_ID", WX_CLIENT_ID)
+CLIENT_SECRET = os.getenv("FLYSOURCE_CLIENT_SECRET", WX_CLIENT_SECRET)
+
+
+def set_client_credentials(mode: str = "wxapp"):
+    """运行时切换客户端凭据模式
+
+    mode="wxapp": 微信小程序凭据（默认）
+    mode="web":   WebVPN 版凭据
+    """
+    global CLIENT_ID, CLIENT_SECRET
+    if mode == "web":
+        CLIENT_ID = os.getenv("FLYSOURCE_CLIENT_ID", WEB_CLIENT_ID)
+        CLIENT_SECRET = os.getenv("FLYSOURCE_CLIENT_SECRET", WEB_CLIENT_SECRET)
+    else:
+        CLIENT_ID = os.getenv("FLYSOURCE_CLIENT_ID", WX_CLIENT_ID)
+        CLIENT_SECRET = os.getenv("FLYSOURCE_CLIENT_SECRET", WX_CLIENT_SECRET)
 
 
 def generate_sign(path: str, timestamp: int, token: str = "") -> str:

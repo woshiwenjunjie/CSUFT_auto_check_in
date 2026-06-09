@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════════
 # Auto Check-In — CSUFT 自动晚点名打卡
 #
-# 每天 21:05 自动运行 · GitHub Actions 托管
+# 每天 UTC 13:05（北京时间 21:05）自动运行 · GitHub Actions 托管
 # 通知：Server酱微信推送（主） + Telegram（备用）
 # ═══════════════════════════════════════════════════════════
 
@@ -200,25 +200,25 @@ DISTANCE="${DISTANCE:--}"
 if echo "$CHECKIN_OUTPUT" | grep -qE "打卡成功"; then
     # ── 🎉 成功 ──
     SUMMARY+="| 打卡 | ✅ 成功 |\n"
-    SUMMARY+="\n### 🎉 打卡成功\n"
-    SUMMARY+="| 项目 | 详情 |\n|------|------|\n"
+    SUMMARY+="\n### 📋 打卡详情\n"
+    SUMMARY+="| 项目 | 结果 |\n|------|------|\n"
     SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n"
     SUMMARY+="| 状态 | ${STATUS_RAW} |\n"
-    [ "${DISTANCE}" != "-" ] && SUMMARY+="| 距宿舍 | ${DISTANCE} |\n"
+    [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
+    SUMMARY+="\n⏰ ${RUN_DATE} UTC"
 
-    BODY="## ✅ 打卡成功
+    BODY="## ✅ 晚点名打卡 · 成功
 
-| 项目 | 详情 |
-|------|------|
-| 日期 | ${CHECKIN_DATE} |
-| 状态 | ${STATUS_RAW} |"
-    [ "${DISTANCE}" != "-" ] && BODY+="
-| 距宿舍 | ${DISTANCE} |"
+**${CHECKIN_DATE}** | 状态：${STATUS_RAW}"
+
+    [ "${DISTANCE}" != "-" ] && BODY+=" | 距宿舍 ${DISTANCE}"
+
     BODY+="
 
-⏰ ${RUN_DATE} (北京时间)"
+---
+🕐 ${RUN_DATE} UTC"
 
-    notify "✅ CSUFT 打卡成功" "${BODY}" "✅ CSUFT 打卡成功 | ${CHECKIN_DATE} | ${STATUS_RAW}"
+    notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
 
 elif echo "$CHECKIN_OUTPUT" | grep -qE "已打卡|重复"; then
     # ── 已打过 ──
@@ -227,67 +227,39 @@ elif echo "$CHECKIN_OUTPUT" | grep -qE "已打卡|重复"; then
 
     BODY="## ⏰ 今日已打卡
 
-**日期**：${CHECKIN_DATE}
-**状态**：${STATUS_RAW}
+**${CHECKIN_DATE}** — 今日已签过到，无需重复操作"
 
-今天已经签过到了，无需重复操作"
-
-    notify "⏰ CSUFT 已打卡" "${BODY}" ""
-
-elif echo "$CHECKIN_OUTPUT" | grep -q "超出打卡范围"; then
-    # ── GPS 超出 ──
-    SUMMARY+="| 打卡 | ⚠️ GPS 超出范围 |\n"
-    SUMMARY+="| 距宿舍 | ${DISTANCE} |\n"
-    SUMMARY+="\n**失败原因**：模拟坐标距离宿舍过远\n"
-
-    BODY="## ⚠️ 打卡失败 — GPS 超出范围
-
-**日期**：${CHECKIN_DATE}
-**距宿舍**：${DISTANCE}
-
-**原因**：随机生成的模拟坐标距离宿舍太远，
-超过了学校要求的精度范围。
-
-**解决办法**：在本地用减小偏移量的方式重试：
-\`python scripts/cli.py checkin --offset 0.0001\`"
-
-    notify "⚠️ CSUFT GPS 超出范围" "${BODY}" "⚠️ CSUFT GPS 超出范围 | ${DISTANCE}"
-    write_github_summary "${SUMMARY}"
-    exit 1
+    notify "⏰ CSUFT 今日已打卡 · ${CHECKIN_DATE}" "${BODY}" "⏰ 今日已打卡 ${CHECKIN_DATE}"
 
 elif echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
     # ── Token 过期 ──
     SUMMARY+="| 打卡 | ❌ 凭据过期 |\n"
     SUMMARY+="\n**失败原因**：Token 已过期\n"
 
-    BODY="## ❌ 打卡失败 — Token 过期
+    BODY="## ❌ 登录凭据已过期
 
-**时间**：${RUN_DATE}
+**${RUN_DATE}**
 
-**原因**：学校系统的登录凭据（Token）已过期。
+> 学校系统 Token 已过期，需在本地重新登录：
+> \`login-openid\` → 更新 GitHub Secrets"
 
-**解决办法**：在本地电脑上重新登录一次：
-\`python scripts/cli.py login-openid\`
-然后更新 GitHub Secrets。"
-
-    notify "❌ CSUFT Token 过期" "${BODY}" "❌ CSUFT Token 过期"
+    notify "❌ CSUFT Token 过期" "${BODY}" "❌ Token 过期"
     write_github_summary "${SUMMARY}"
     exit 1
 
 elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
     # ── 不在窗口 ──
     SUMMARY+="| 打卡 | ⏳ 未到时间 |\n"
-    SUMMARY+="\n**说明**：不在签到窗口内（21:00–22:30）\n"
+    SUMMARY+="\n**说明**：不在签到窗口内\n"
 
     BODY="## ⏳ 未到签到时间
 
-**时间**：${RUN_DATE}
-**状态**：尚未到签到时间
+**${RUN_DATE}** — 不在打卡窗口内
 
-CSUFT 打卡窗口为 **每晚 21:00–22:30**
-定时任务会在 21:05 自动执行。"
+> 窗口：**13:00–14:30 UTC**（北京时间 21:00–22:30）
+> 任务定时 UTC 13:05 自动执行"
 
-    notify "⏳ CSUFT 未到签到时间" "${BODY}" ""
+    notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
 
 else
     # ── 未知错误 ──
@@ -295,22 +267,23 @@ else
     LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
     SUMMARY+="\n**失败原因**：服务器返回未知错误\n\`\`\`\n${LAST_LINES}\n\`\`\`\n"
 
-    BODY="## ❌ 打卡失败 — 未知错误
+    BODY="## ❌ 打卡失败
 
-**时间**：${RUN_DATE}
+**${RUN_DATE}**
 
-**服务器返回**：
+\`\`\`
 ${LAST_LINES}
+\`\`\`
 
-请在 Actions 页面查看完整日志。"
+🔍 请在 Actions 页面查看完整日志"
 
-    notify "❌ CSUFT 打卡失败" "${BODY}" "❌ CSUFT 打卡失败 | ${RUN_DATE}"
+    notify "❌ CSUFT 打卡失败 · ${RUN_DATE}" "${BODY}" "❌ 打卡失败 ${RUN_DATE}"
     write_github_summary "${SUMMARY}"
     exit 1
 fi
 
 # ── 成功路径收尾 ────────────────────────────────────
-SUMMARY+="\n---\n⏰ ${RUN_DATE} (北京时间) · [Actions](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
+SUMMARY+="\n---\n⏰ ${RUN_DATE} UTC · [查看日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"
 write_github_summary "${SUMMARY}"
 
 echo "========================================" | tee -a "$LOG_FILE"
