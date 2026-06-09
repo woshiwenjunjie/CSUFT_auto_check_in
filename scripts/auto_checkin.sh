@@ -9,13 +9,25 @@
 set -euo pipefail
 
 # ═══════════════════════════════════════════════════════════
-# 系统时区由 GitHub Actions workflow 的 TZ=Asia/Shanghai 统一设置
-# bash date / Python datetime.now() 均自动使用系统本地时间 = 北京时间
+# 时间统一用 Python timezone(timedelta(hours=8)) 获取北京时间
+# bash date + TZ 环境变量在 GitHub Actions Ubuntu runner 上不可靠
+# 参考: docs/memory/014-UTC时间坑.md, 015-beijing-timezone-fix-final.md
 # ═══════════════════════════════════════════════════════════
 
 LOG_FILE="/tmp/auto_checkin_output.txt"
-RUN_DATE=$(date '+%Y-%m-%d %H:%M:%S')
-RUN_DATE_SHORT=$(date '+%Y-%m-%d')
+
+# 用 Python 获取北京时间（纯数学偏移，不依赖 OS 时区数据库）
+_beijing_now() {
+    python -c "
+from datetime import datetime, timezone, timedelta
+tz = timezone(timedelta(hours=8))
+n = datetime.now(tz)
+print(n.strftime('%Y-%m-%d %H:%M:%S'), n.strftime('%Y-%m-%d'), n.strftime('%H:%M:%S'))
+"
+}
+read -r RUN_DATE RUN_DATE_SHORT _NOW_TIME <<< "$(_beijing_now)"
+
+now_ts() { python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%H:%M:%S'))"; }
 
 GITHUB_SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
 GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-unknown}"
@@ -37,9 +49,6 @@ parse_result_field() {
     local text="$1" field="$2"
     echo "$text" | grep -oP "${field}=\K[^ ]*" | head -1
 }
-
-now_ts() { date '+%H:%M:%S'; }
-
 
 # ═══════════════════════════════════════════════════════════
 # Server酱 微信推送
