@@ -1,5 +1,34 @@
 # 更新日志
 
+## [0.8.3] — 2026-06-09
+
+### 🔴 时区修复（第三次，最终方案）
+
+**根因**：v0.8.2 的「UTC 规范化」引入三个连锁 bug：
+1. bash `date` + `TZ=Asia/Shanghai` 在 GitHub Actions Ubuntu runner 上不可靠 → 通知时间显示混乱
+2. `TZ` 环境变量可能误导 GitHub Actions cron 调度器将 `5 13 * * *` 解释为北京时间 13:05
+3. 通知标签全标 UTC，与 date 实际输出时区不一致
+
+**修复**：
+- `auto_checkin.sh`：彻底放弃 bash `date`，全部改用 Python `datetime.now(timezone(timedelta(hours=8)))`
+- 新增 `_beijing_now()` 函数，`now_ts()` 同步改用 Python
+- workflow：**移除 `TZ: Asia/Shanghai`** 环境变量（可能影响 cron 调度器）
+- workflow keepalive 步骤改用显式 Beijing 时区
+- 通知标签全部改回「北京时间」
+
+### 🟡 状态匹配修复
+
+**根因**：服务器 `signStatusName` 返回「正常」而非 STATUS_MAP 的「已打卡」，导致 `auto_checkin.sh` case 匹配失败，打卡成功却 exit 1 + 发失败通知。
+
+**修复**：
+- `auto_checkin.sh`：case 新增 `"正常"` 匹配
+- `cli_ui.py`：STATUS_MAP 0 改 `"已打卡"` → `"正常"`，与服务器一致
+
+### 📖 文档
+- **新增** `docs/memory/016-时区修复与cron调度排错.md` — 四个 bug 排查全记录
+- **更新** `docs/memory/014-UTC时间坑.md` — 修正错误结论
+- **更新** `docs/guides/dev/GitHub-Actions部署记录.md` — 补充 cron 调度排错章节
+
 ## [0.8.2] — 2026-06-09
 
 ### UTC 时间规范化

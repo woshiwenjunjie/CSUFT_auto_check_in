@@ -74,8 +74,8 @@ Actions 页面 → Auto Check-In → Run workflow → Run workflow
 
 | 服务器返回 | 行为 | 退出码 | 通知内容 |
 |-----------|------|:--:|------|
-| 打卡成功 | 正常退出 | 0 | ✅ 成功，含日期、状态、距离 |
-| 已打卡/重复 | 正常退出 | 0 | ⏰ 今日已签到，无需重复 |
+| 正常 / 已打卡 | 正常退出 | 0 | ✅ 成功，含日期、状态、距离 |
+| 迟到 | 正常退出 | 0 | ✅ 成功（迟到），含日期、状态、距离 |
 | 未到签到时间 | 正常退出 | 0 | ⏳ 不在窗口内（21:00–22:30） |
 | 超出打卡范围 | 退出报错 | 1 | ⚠️ GPS 过远，含距离 + 修复建议 |
 | Token 过期 | 退出报错 | 1 | ❌ 凭据过期，含续期操作指引 |
@@ -158,7 +158,70 @@ Settings → Notifications → 勾选 "Email notification for failed workflows"
 
 ---
 
-## 8. 安全说明
+## 8. 时区处理（v0.8.3 最终方案）
+
+### 为什么 bash date + TZ 不可靠
+
+在 GitHub Actions Ubuntu runner 上，`date` 命令的 `TZ` 环境变量行为不一致：
+- 部分 runner 缺少 zoneinfo 数据（Olson 时区名如 `Asia/Shanghai` 需要 tzdata）
+- POSIX 格式 `CST-8` 不需要 zoneinfo，但跨平台兼容性仍不可控
+- Git 时间戳和 bash `date` 可能受 `TZ` 影响，导致显示混乱
+
+### 最终方案
+
+**所有时间值 100% 来自 Python**：
+
+```bash
+# auto_checkin.sh — 北京时间获取函数
+_beijing_now() {
+    python -c "
+from datetime import datetime, timezone, timedelta
+tz = timezone(timedelta(hours=8))
+n = datetime.now(tz)
+print(n.strftime('%Y-%m-%d %H:%M:%S'), n.strftime('%Y-%m-%d'), n.strftime('%H:%M:%S'))
+"
+}
+read -r RUN_DATE RUN_DATE_SHORT _NOW_TIME <<< "$(_beijing_now)"
+
+now_ts() { python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%H:%M:%S'))"; }
+```
+
+```yaml
+# workflow — keepalive 步骤
+python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S'))"
+```
+
+### ⚠️ 不要做的事
+
+- ❌ 不要在 workflow `env` 中设置 `TZ: Asia/Shanghai` — 可能影响 cron 调度器时区解释
+- ❌ 不要使用 bash `date` 命令 — 在不同 runner 上行为不可预测
+- ❌ 不要使用 `datetime.now()` 无参 — 使用系统本地时间而非北京时间
+
+---
+
+## 9. Cron 调度排错
+
+### Cron 不触发的常见原因
+
+| 现象 | 可能原因 | 解决 |
+|------|----------|------|
+| 没有 "Next scheduled run" | Workflow 文件最近频繁修改 | 停止改动 24 小时等待注册 |
+| 没有 "Next scheduled run" | Actions 被禁用 | Settings → Actions → Allow all |
+| 有 "Next run" 但不触发 | 仓库为新仓库，首次需时间 | 等 24 小时 |
+| 触发时间不对 | `TZ` 环境变量干扰调度器 | 从 workflow env 中移除 `TZ` |
+| 触发但 workflow 失败 | 凭据过期 / 网络不通 | 手动触发一次查看日志 |
+
+### 验证 Schedule 是否注册
+
+仓库 → Actions → 左侧点 "Auto Check-In" → 页面顶部查看是否有：
+
+> ⏰ **Next scheduled run**: YYYY/MM/DD 13:05 (UTC)
+
+有这行 = cron 已注册。没有 = 需排查。
+
+---
+
+## 10. 安全说明
 
 - 凭据通过 GitHub Secrets 注入，日志中自动 `***` 屏蔽
 - `password.txt` 已加入 `.gitignore`，不会提交
