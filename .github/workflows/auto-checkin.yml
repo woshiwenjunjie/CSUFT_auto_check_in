@@ -38,7 +38,6 @@ jobs:
           CHECKIN_USERNAME: ${{ secrets.CHECKIN_USERNAME }}
           CHECKIN_PASSWORD: ${{ secrets.CHECKIN_PASSWORD }}
           CHECKIN_TASK_ID: ${{ secrets.CHECKIN_TASK_ID }}
-          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}

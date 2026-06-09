@@ -104,6 +104,8 @@ def checkin(args):
             if dist <= accuracy:
                 source = f"模拟偏移 ±{cur_offset}°" + (f" (第{attempt + 1}次尝试)" if attempt > 0 else "")
                 break
+            if cur_offset < 1e-6:
+                break
             cur_offset /= 2
         else:
             warn_box(f"重试 5 次后仍超出打卡范围  {dist:.0f}m > {accuracy}m")

@@ -137,7 +137,7 @@ def login_webvpn(args):
         bullet(f"验证失败: 网络错误或 token 无效 — {exc}", ok=False)
         return
 
-    if tasks.get("success") or tasks.get("code") == 200 or tasks.get("data"):
+    if tasks.get("success") is True or tasks.get("code") == 200:
         cfg["token"] = token
         cfg["username"] = username
         cfg["tenant_id"] = "000000"

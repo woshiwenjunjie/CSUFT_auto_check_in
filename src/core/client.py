@@ -5,7 +5,7 @@ import time
 import certifi
 import httpx
 from src.utils.crypto import md5
-from src.utils.sign import generate_sign, generate_basic_auth, set_client_credentials
+from src.utils.sign import generate_sign, generate_basic_auth, get_credentials
 
 
 class ApiClient:
@@ -39,10 +39,12 @@ class ApiClient:
         base_url: API 基址，默认从环境变量 CHECKIN_BASE_URL 读取，兜底硬编码
         client_mode: 客户端凭据模式，"wxapp"（微信小程序）或 "web"（WebVPN 版）
         """
+        if client_mode not in ("wxapp", "web"):
+            raise ValueError(f"client_mode must be 'wxapp' or 'web', got: {client_mode}")
         self.token = token
         self.base_url = base_url or os.getenv("CHECKIN_BASE_URL", "https://simp.csuft.edu.cn")
         self.client_mode = client_mode
-        set_client_credentials(client_mode)
+        self._client_id, self._client_secret = get_credentials(client_mode)
         if client_mode == "web":
             self._referer = self.WEB_REFERER
             self._user_agent = self.WEB_USER_AGENT
@@ -76,10 +78,11 @@ class ApiClient:
             "User-Agent": self._user_agent,
         }
         if not no_auth:
-            h["Authorization"] = generate_basic_auth()
+            h["Authorization"] = generate_basic_auth(self._client_id, self._client_secret)
         if self.token:
             h["FlySource-Auth"] = self.token
-            h["FlySource-sign"] = generate_sign(url_path, ts, self.token)
+            h["FlySource-sign"] = generate_sign(url_path, ts, self.token,
+                                                self._client_id, self._client_secret)
         if extra:
             h.update(extra)
         return h

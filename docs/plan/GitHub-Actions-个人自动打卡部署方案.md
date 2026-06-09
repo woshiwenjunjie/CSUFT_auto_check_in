@@ -290,14 +290,7 @@ send_notification() {
             > /dev/null 2>&1 || true
     fi
 
-    # ── 微信通知（通过 Server酱 / PushPlus） ──
-    # if [ -n "${PUSHPLUS_TOKEN:-}" ]; then
-    #     curl -s -X POST "http://www.pushplus.plus/send" \
-    #         -d "token=${PUSHPLUS_TOKEN}" \
-    #         -d "title=${title}" \
-    #         -d "content=${message}" \
-    #         > /dev/null 2>&1 || true
-    # fi
+    # ── 微信通知（通过 Server酱） ──
 }
 ```
 
@@ -396,12 +389,11 @@ git push
    - `TG_BOT_TOKEN` = Bot Token
    - `TG_CHAT_ID` = Chat ID
 
-### 方案 B：Server酱 / PushPlus（微信推送）
+### 方案 B：Server酱（微信推送）
 
-1. 访问 https://www.pushplus.plus 注册
-2. 获取 Token
-3. 在 `auto_checkin.sh` 中取消 PushPlus 通知的注释
-4. 将 Token 添加到 GitHub Secrets：`PUSHPLUS_TOKEN`
+1. 访问 https://sct.ftqq.com 扫码注册
+2. 获取 SendKey
+3. 添加到 GitHub Secrets：`SERVERCHAN_KEY`
 
 ### 方案 C：GitHub Actions 内置通知
 

@@ -7,7 +7,7 @@
 import subprocess
 import sys
 from pathlib import Path
-from src.utils.sign import generate_sign, generate_basic_auth
+from src.utils.sign import generate_sign, generate_basic_auth, get_credentials
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -74,12 +74,12 @@ def test_cross_validate_real_world_timestamp():
 
 def test_basic_auth_structure():
     """Basic Auth 结构完整性"""
-    result = generate_basic_auth()
+    client_id, client_secret = get_credentials("wxapp")
+    result = generate_basic_auth(client_id, client_secret)
     assert result.startswith("Basic ")
     # 解码验证
     import base64
     decoded = base64.b64decode(result[6:]).decode("utf-8")
     assert ":" in decoded
-    client_id, client_secret = decoded.split(":", 1)
-    assert len(client_id) > 0
-    assert len(client_secret) > 0
+    assert client_id in decoded
+    assert client_secret in decoded

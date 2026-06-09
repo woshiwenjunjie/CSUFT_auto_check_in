@@ -192,82 +192,88 @@ CHECKIN_DATE="${CHECKIN_DATE:-${RUN_DATE_SHORT}}"
 DISTANCE=$(extract_field "$CHECKIN_OUTPUT" "与宿舍距离")
 DISTANCE="${DISTANCE:--}"
 
-
 # ═══════════════════════════════════════════════════════════
 # 结果判断 → 全部发送通知，写明原因
 # ═══════════════════════════════════════════════════════════
 
-if echo "$CHECKIN_OUTPUT" | grep -qE "打卡成功"; then
-    # ── 🎉 成功 ──
-    SUMMARY+="| 打卡 | ✅ 成功 |\n"
-    SUMMARY+="\n### 📋 打卡详情\n"
-    SUMMARY+="| 项目 | 结果 |\n|------|------|\n"
-    SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n"
-    SUMMARY+="| 状态 | ${STATUS_RAW} |\n"
-    [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
-    SUMMARY+="\n⏰ ${RUN_DATE} UTC"
+# 使用机器可读的 CHECKIN_RESULT 行中的 status 字段判断结果
+# STATUS_RAW 值对照 STATUS_MAP: 0=已打卡, 1=迟到, 2=请假中, 3=未归, 4=走读中, 5=离校中, 6=外宿中
+case "$STATUS_RAW" in
+    "已打卡"|"迟到")
+        # ── 🎉 成功 ──
+        SUMMARY+="| 打卡 | ✅ 成功 |\n"
+        SUMMARY+="\n### 📋 打卡详情\n"
+        SUMMARY+="| 项目 | 结果 |\n|------|------|\n"
+        SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n"
+        SUMMARY+="| 状态 | ${STATUS_RAW} |\n"
+        [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
+        SUMMARY+="\n⏰ ${RUN_DATE} UTC"
 
-    BODY="## ✅ 晚点名打卡 · 成功
+        BODY="## ✅ 晚点名打卡 · 成功
 
 **${CHECKIN_DATE}** | 状态：${STATUS_RAW}"
 
-    [ "${DISTANCE}" != "-" ] && BODY+=" | 距宿舍 ${DISTANCE}"
+        [ "${DISTANCE}" != "-" ] && BODY+=" | 距宿舍 ${DISTANCE}"
 
-    BODY+="
+        BODY+="
 
 ---
 🕐 ${RUN_DATE} UTC"
 
-    notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
+        notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
+        ;;
 
-elif echo "$CHECKIN_OUTPUT" | grep -qE "已打卡|重复"; then
-    # ── 已打过 ──
-    SUMMARY+="| 打卡 | ⚠️ 已打卡 |\n"
-    SUMMARY+="\n**结果**：今日已签过到\n"
+    "请假中"|"未归"|"走读中"|"离校中"|"外宿中")
+        # ── 状态已更新但非正常打卡（如请假、未归等）──
+        SUMMARY+="| 打卡 | ⚠️ ${STATUS_RAW} |\n"
+        SUMMARY+="\n**结果**：${STATUS_RAW}\n"
 
-    BODY="## ⏰ 今日已打卡
+        BODY="## ⚠️ 打卡状态：${STATUS_RAW}
 
-**${CHECKIN_DATE}** — 今日已签过到，无需重复操作"
+**${CHECKIN_DATE}** — 状态：${STATUS_RAW}"
 
-    notify "⏰ CSUFT 今日已打卡 · ${CHECKIN_DATE}" "${BODY}" "⏰ 今日已打卡 ${CHECKIN_DATE}"
+        notify "⚠️ CSUFT 状态 ${STATUS_RAW} · ${CHECKIN_DATE}" "${BODY}" "⚠️ 状态 ${STATUS_RAW} ${CHECKIN_DATE}"
+        ;;
 
-elif echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
-    # ── Token 过期 ──
-    SUMMARY+="| 打卡 | ❌ 凭据过期 |\n"
-    SUMMARY+="\n**失败原因**：Token 已过期\n"
+    *)
+        # 检查原始输出中的特定错误信息（这些在 CHECKIN_RESULT 之前出现）
+        if echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
+            # ── Token 过期 ──
+            SUMMARY+="| 打卡 | ❌ 凭据过期 |\n"
+            SUMMARY+="\n**失败原因**：Token 已过期\n"
 
-    BODY="## ❌ 登录凭据已过期
+            BODY="## ❌ 登录凭据已过期
 
 **${RUN_DATE}**
 
 > 学校系统 Token 已过期，需在本地重新登录：
 > \`login-openid\` → 更新 GitHub Secrets"
 
-    notify "❌ CSUFT Token 过期" "${BODY}" "❌ Token 过期"
-    write_github_summary "${SUMMARY}"
-    exit 1
+            notify "❌ CSUFT Token 过期" "${BODY}" "❌ Token 过期"
+            write_github_summary "${SUMMARY}"
+            exit 1
 
-elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
-    # ── 不在窗口 ──
-    SUMMARY+="| 打卡 | ⏳ 未到时间 |\n"
-    SUMMARY+="\n**说明**：不在签到窗口内\n"
+        elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
+            # ── 不在窗口 ──
+            SUMMARY+="| 打卡 | ⏳ 未到时间 |\n"
+            SUMMARY+="\n**说明**：不在签到窗口内\n"
 
-    BODY="## ⏳ 未到签到时间
+            BODY="## ⏳ 未到签到时间
 
 **${RUN_DATE}** — 不在打卡窗口内
 
 > 窗口：**13:00–14:30 UTC**（北京时间 21:00–22:30）
 > 任务定时 UTC 13:05 自动执行"
 
-    notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
+            notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
 
-else
-    # ── 未知错误 ──
-    SUMMARY+="| 打卡 | ❌ 失败 |\n"
-    LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
-    SUMMARY+="\n**失败原因**：服务器返回未知错误\n\`\`\`\n${LAST_LINES}\n\`\`\`\n"
+        else
+            # ── 未知错误 ──
+            SUMMARY+="| 打卡 | ❌ 失败 |\n"
+            LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
+            SUMMARY+="\n**失败原因**：服务器返回未知错误\n\`\`\`\n${LAST_LINES}\n\`\`\`\n"
 
-    BODY="## ❌ 打卡失败
+            BODY="## ❌ 打卡失败
 
 **${RUN_DATE}**
 
@@ -277,10 +283,12 @@ ${LAST_LINES}
 
 🔍 请在 Actions 页面查看完整日志"
 
-    notify "❌ CSUFT 打卡失败 · ${RUN_DATE}" "${BODY}" "❌ 打卡失败 ${RUN_DATE}"
-    write_github_summary "${SUMMARY}"
-    exit 1
-fi
+            notify "❌ CSUFT 打卡失败 · ${RUN_DATE}" "${BODY}" "❌ 打卡失败 ${RUN_DATE}"
+            write_github_summary "${SUMMARY}"
+            exit 1
+        fi
+        ;;
+esac
 
 # ── 成功路径收尾 ────────────────────────────────────
 SUMMARY+="\n---\n⏰ ${RUN_DATE} UTC · [查看日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"

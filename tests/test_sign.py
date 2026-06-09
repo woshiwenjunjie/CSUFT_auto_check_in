@@ -1,7 +1,7 @@
 """FlySource-sign 签名算法与 Basic 认证测试"""
 import re
 import time
-from src.utils.sign import generate_sign, generate_basic_auth
+from src.utils.sign import generate_sign, generate_basic_auth, get_credentials
 
 
 def test_sign_format():
@@ -48,7 +48,8 @@ def test_sign_empty_token():
 
 def test_basic_auth_format():
     """Basic 认证头格式: "Basic " + Base64(clientId:clientSecret)"""
-    result = generate_basic_auth()
+    client_id, client_secret = get_credentials("wxapp")
+    result = generate_basic_auth(client_id, client_secret)
     assert result.startswith("Basic ")
     import base64
     decoded = base64.b64decode(result[6:]).decode()
