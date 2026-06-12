@@ -417,5 +417,5 @@ MIT License
 
 ## 🙏 致谢
 
-- 逆向分析参考：[NaHS2 自动打卡文章总结](references/nahs-online-自动打卡文章总结.md)
+- 逆向分析参考：[NaHS2 自动打卡文章总结](references/nahs-online-自动打卡文章总结.md) · [nahsit.com](https://nahsit.com)
 - 飞源（FlySource）统一认证平台
