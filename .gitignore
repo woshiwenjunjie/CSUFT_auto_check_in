@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+*.zip
 *.py[cod]
 *.egg-info/
 dist/
@@ -42,3 +43,4 @@ decompiled/
 reports/
 .coverage
 htmlcov/
+.pytest_cache/

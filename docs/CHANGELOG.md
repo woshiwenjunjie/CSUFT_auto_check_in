@@ -1,5 +1,77 @@
 # 更新日志
 
+## [0.9.1] — 2026-06-12
+
+### 🎯 SCF 部署优化
+
+**Cron 时区修正**（第三次时区坑）：
+- SCF 控制台 Cron 默认北京时间（UTC+8），非 UTC
+- 表达式从 `5 13 * * *` → `0 5 21 * * ? *`（7 字段格式，含秒+年）
+- 全量文档、代码注释、dry-run 输出同步修正
+
+**通知优化**：
+- `_build_notification` 与 GitHub Actions 风格对齐
+- 打卡成功时显示 GPS 距离：`**2026-06-12** | 状态：正常 | 距宿舍 15.3m`
+- 重复打卡提示次日窗口：`> 次日 **21:00–22:30** 自动执行下次打卡`
+- Token 过期增加操作指引：`> CLI: \`capture-openid\` / Fiddler / Reqable`
+- `do_checkin` 返回 3 元组 `(bool, str, str)` 传递距离
+
+**窗口检测**：
+- 新增 `_is_window_open()` / `_nearest_window_hint()` 检测当前时间
+- 窗口外自动返回 `nowindow` 状态而非 `error`
+- 提示信息显示小时+分钟：`"还有 8 小时 25 分钟"`
+- 窗口内有任务则正常打卡，无任务提示 `"可能今日未发布"`
+
+**函数注释补齐**：
+- 全部 9 个函数新增/完善 docstring（`_is_window_open`、`_nearest_window_hint`、`run_checkin`、`_notify_and_return`、`_build_notification`、`get_env_str` 等）
+
+### 📖 文档
+- `README.md` — 徽章 31→67，功能列表、测试表、目录结构同步更新
+- `CLAUDE.md` — SCF Cron 格式修正，状态描述更新
+- `docs/guides/user/腾讯云SCF部署指南.md` — 细化 7 步流程，凭据脱敏，Cron 说明
+- `deploy/tencent-scf/README.md` — 重写，废弃旧 CLI 方式，统一手动上传流程
+
+## [0.9.0] — 2026-06-12
+
+### 🏗️ SCF 部署模块重构
+
+全模块顶层注释规范化（执行流程图、设计原理、环境变量表、状态码说明）：
+- `checkin.py` — 编排流程图、延迟时间函数原理、GPS 退避策略、5 种状态码
+- `handler.py` — 异常安全网设计、健康检查支持
+- `notify.py` — Server酱 推送流程、2 次重试 3s 间隔
+- `deploy.py` — 打包部署架构、错误处理三明治
+
+变量名重构提升可读性：
+- `client` → `api_client`、`dorm_lat` → `dormitory_lat`、`cur_offset` → `current_offset_degrees`
+- `stu_task_id` → `student_task_id`、`src_dst` → `target_src_dir`
+
+模块级时间冻结修复：`NOW` → `_now()` 延迟函数，避免 warm start 冻结。
+
+运行时版本变量化：`SCF_RUNTIME` 环境变量（默认 Python 3.12）。
+
+`scf_bootstrap` 删除（标准 Python 运行时无需）。
+
+### 🧪 完整测试覆盖（36 新测试）
+
+`tests/deploy/` 目录新建，5 测试文件覆盖全部 SCF 模块：
+
+| 文件 | 测试数 | 覆盖内容 |
+|------|--------|----------|
+| `test_notify.py` | 4 | 跳过/成功/500/重试 |
+| `test_checkin_core.py` | 14 | 时间/环境变量/通知 5 状态 |
+| `test_checkin_api.py` | 7 | GPS 退避/sign_data/MD5 |
+| `test_handler.py` | 4 | 健康检查/正常/异常捕获 |
+| `test_deploy_utils.py` | 4 | _fmt_size KB/MB/0 |
+
+conftest.py 重构：移除模块级 mock，采用 `@patch('checkin.xxx')` 定点拦截。
+
+总计 67 测试（31 原 + 36 新）全部通过。
+
+### 📖 文档
+- `docs/memory/017-SCF部署重构与测试完善.md` — 新增
+- `AGENTS.md` — 测试数更新 31→67，"Reaple"→"Reqable"，SCF 设计要点表
+- `CLAUDE.md` — Four-tier design 含 SCF 层、deploy 命令、状态更新
+
 ## [0.8.3] — 2026-06-09
 
 ### 🔴 时区修复（第三次，最终方案）

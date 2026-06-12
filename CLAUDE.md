@@ -8,11 +8,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Activate virtual environment (Windows PowerShell)
 .\.venv\Scripts\activate
 
-# Run all tests (20 cases, ~0.1s)
+# Run all tests (67 cases, ~0.2s)
 python -m pytest tests/ -v
 
 # Run a single test file
 python -m pytest tests/test_crypto.py -v
+
+# Run deploy tests (SCF module)
+python -m pytest tests/deploy/ -v
 
 # Run the CLI tool
 python scripts/cli.py --help
@@ -21,6 +24,12 @@ python scripts/cli.py checkin         # One-click check-in
 
 # Cross-validate signing algorithm against JS reference
 node scripts/sign.js /api/test 1700000000000 test_token
+
+# Tencent SCF deployment (see deploy/tencent-scf/README.md)
+python deploy/tencent-scf/deploy.py              # package + upload
+python deploy/tencent-scf/deploy.py --dry-run    # package only
+python deploy/tencent-scf/deploy.py --invoke     # deploy + test invoke
+bash deploy/tencent-scf/package.sh               # Linux package (manual upload)
 
 # GitHub Actions deployment (see docs/guides/dev/GitHub-Actions部署记录.md)
 # - Auto-trigger: daily 21:05 Beijing time (cron: "5 13 * * *")
@@ -34,9 +43,10 @@ No build step — pure Python, run directly. The virtual env is `.venv/` (Python
 
 **Purpose:** Automated dormitory check-in for Central South University of Forestry and Technology (中南林业科技大学). Mimics a WeChat mini-program's network requests — from OAuth login through GPS-simulated check-in submission — via a reverse-engineered API client.
 
-**Three-tier design:**
+**Four-tier design:**
 - **CLI tool** (`scripts/cli.py`, ~1350 lines) — interactive single-file terminal app. Used daily by end users for manual/one-off check-ins. Supports 10 subcommands with config persistence to `~/.auto_check_in/config.json`.
-- **GitHub Actions** (`.github/workflows/auto-checkin.yml` + `scripts/auto_checkin.sh`) — automated daily check-in at 21:05 Beijing time. Bash script handles login → task fetch → check-in → notification lifecycle. Server酱 WeChat push (primary) + Telegram Bot (optional) for success/failure notifications.
+- **GitHub Actions** (`.github/workflows/auto-checkin.yml` + `scripts/auto_checkin.sh`) — automated daily check-in at 21:05 Beijing time. Bash script handles login → task fetch → check-in → notification lifecycle. Server酱 WeChat push for success/failure notifications.
+- **Tencent SCF** (`deploy/tencent-scf/`) — serverless deployment alternative to GitHub Actions. Uses SCF timer trigger (cron: `0 5 21 * * ? *` 7-field Beijing time). Python 3.10 runtime. Four modules: `handler.py` (entry point with exception safety net), `checkin.py` (orchestration with time window detection, GPS offset backoff, 5 status codes), `notify.py` (Server酱 push with 2-retry), `deploy.py` (auto-package). All time functions are lazy-evaluated (`_now()`) to avoid warm-start freeze. Config via SCF environment variables (platform-encrypted). 36 tests cover the full module.
 - **FastAPI server** (`src/main.py`) — minimal scaffolding for phase 3 (multi-user web service). Not yet functional; only has a root route, CORS, and lifespan-managed `ApiClient` singleton.
 
 **Core module — `src/core/client.py` (`ApiClient`):**
@@ -69,11 +79,11 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 
 ## Project state
 
-**Done (phase 1–2 + GitHub Actions):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 20 pytest cases pass. ANSI terminal UI with 10 subcommands. GitHub Actions auto-check-in deployed and running daily.
+**Done (phase 1–2 + GitHub Actions + SCF):** Reverse engineering complete, CLI tool fully functional and tested against real APIs. 67 pytest cases pass (31 core + 36 SCF deploy). ANSI terminal UI with 13 subcommands. GitHub Actions auto-check-in deployed and running daily. Tencent SCF serverless deployment available as alternative — Python 3.10, 7-field Beijing-time cron, time window detection with friendly messages, GPS offset backoff, notification matching GA style.
 
 **Done (GitHub Actions auto-deploy):** `.github/workflows/auto-checkin.yml` triggers daily at 21:05 Beijing time. `scripts/auto_checkin.sh` orchestrates login → check-in → notification via Server酱 + Telegram. Manual trigger via `workflow_dispatch`. v0.8.1 fixed a silent notification failure caused by missing URL encoding in `send_serverchan()` — always use `--data-urlencode` for form data containing Markdown/special characters, and never discard API responses with `> /dev/null 2>&1`.
 
-**Next (phase 3):** Build the multi-user web backend — SQLAlchemy models, FastAPI routes, APScheduler cron jobs. See `docs/plan/` for all plans. The `src/api/`, `src/models/`, `src/services/` directories are empty stubs waiting for implementation.
+**Next (phase 3):** Build the multi-user web backend — SQLAlchemy models, FastAPI routes, APScheduler cron jobs. See `docs/plan/` for all plans. The `src/api/`, `src/models/`, `src/services/` directories are empty stubs waiting for implementation. Also address SCF review feedback: `docs/review/deploy-scf-review.md`.
 
 ## Conventions
 
@@ -82,7 +92,7 @@ Where `path` is the URL path without query string, `timestamp` is a 13-digit mil
 - **Cross-validate signing** — when touching `src/utils/sign.py`, verify against `scripts/sign.js` with the same inputs. A one-character difference in the MD5 chain breaks all API calls.
 - **WeChat headers are mandatory** — the server returns misleading "sign error" when headers are missing. If `ApiClient` requests start failing, check `WX_USER_AGENT`, `Referer` (must use `servicewechat.com`), and `charset: utf-8` header before suspecting the signature algorithm.
 - **Config priority:** env vars → hardcoded defaults in `ApiClient` class attributes. The CLI stores user-level config at `~/.auto_check_in/config.json` (token, username, openid, password, task_id, tenant_id).
-- **Tests are fast and offline** — only unit tests for utils (crypto, sign, geo). No integration tests against the real API. Keep it that way until phase 3 adds a test database.
+- **Tests are fast and offline** — only unit tests for utils (crypto, sign, geo) and SCF deploy module (notify, checkin, handler, deploy). No integration tests against the real API. Keep it that way until phase 3 adds a test database.
 - **Chinese comments and output** — source code uses Chinese docstrings. CLI output is Chinese. Windows terminals need `sys.stdout.reconfigure(encoding='utf-8')` (already handled in `cli.py`).
 - **All final responses must be in Chinese** — every reply to the user should be written in Chinese (简体中文). Code, commands, and technical identifiers remain in English, but explanations, summaries, and descriptions must be in Chinese.
 - **GitHub Actions credentials** — all secrets (OpenID, username, password, tokens) live in GitHub Secrets, never in code. `password.txt` is gitignored. The auto-checkin script rebuilds `config.json` from Secrets env vars on each run. Notifications are sent via `notify()` which fires all configured channels (Server酱 WeChat + Telegram).
