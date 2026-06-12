@@ -300,7 +300,40 @@ python -m pytest tests/test_cross_validate.py -v
 
 ---
 
-## 🤖 自动化打卡（GitHub Actions）
+## ☁️ 腾讯云 SCF 部署（推荐）
+
+项目同时提供腾讯云云函数（SCF）部署方案，作为 GitHub Actions 的升级替代。
+
+### 对比：GitHub Actions vs SCF
+
+| 维度 | GitHub Actions | 腾讯云 SCF ✅ |
+|------|---------------|--------------|
+| 触发 | UTC 时间，需考虑时区转换 | 北京时间，Cron 直接配置 |
+| 保活 | 需人工保持仓库活跃（60 天规则） | 无此限制，配置即用 |
+| 通知 | Server酱 + Telegram + Step Summary | Server酱微信推送 |
+| 日志 | GitHub Actions 日志界面 | SCF 控制台日志，保留更久 |
+| 费用 | 免费（但有使用配额） | 免费额度远超打卡需求 |
+| 维护 | 需维护仓库 fork | 一次配置，上传即用 |
+| 依赖 | 自动安装环境 | 打包上传，环境固化 |
+| 稳定性 | 依赖 GitHub 服务可用性 | 腾讯云 SLA 保障 |
+| 配置 | Secrets 环境变量 | SCF 控制台环境变量（可加密） |
+
+**推荐使用 SCF**：无保活困扰、北京时间原生支持、配置一次长期稳定运行。
+
+### 快速部署
+
+```bash
+# 1. 打包
+python deploy/tencent-scf/deploy.py --dry-run
+
+# 2. SCF 控制台 → 创建函数 → 本地上传 zip 包
+# 3. 配置环境变量（OPENID/USERNAME/PASSWORD/SERVERCHAN_KEY）
+# 4. 创建定时触发器：0 5 21 * * ? *（每天 21:05 北京时间）
+```
+
+详细教程：[腾讯云 SCF 部署指南](docs/guides/user/腾讯云SCF部署指南.md)
+
+---
 
 项目内置完整的 GitHub Actions 工作流，实现零成本全自动托管：
 
