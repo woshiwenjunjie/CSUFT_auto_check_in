@@ -43,6 +43,13 @@ decompiled/
 AGENTS.md
 CLAUDE.md
 
+# Docs (local only, keep only guides/)
+docs/CHANGELOG.md
+docs/memory/
+docs/plan/
+docs/plan.md
+docs/review/
+
 # Test results
 reports/
 .coverage
