@@ -436,9 +436,31 @@ python -m pytest tests/test_cross_validate.py -v
 
 ### 代码规范
 
-- 中文回复，英文专业术语除外
-- 凭据脱敏显示，不写死凭据
-- 架构/功能变更时同步更新 CHANGELOG + memory + AGENTS.md
+**凭据安全**
+- README 中展示的默认值（`FLYSOURCE_CLIENT_ID`、`FLYSOURCE_CLIENT_SECRET`、`WX_APP_ID` 等）均来自小程序反编译源码，属于应用级公开常量，**不构成敏感信息**。真正的用户级凭据（OpenID、密码、token）不会出现在任何文档中。
+- 所有凭据在终端显示时自动脱敏（`_mask`），仅展示首尾字符。
+- 密码本地存储使用 `$obf:<base64>` 混淆，禁止明文。
+- 环境变量中的敏感字段建议在部署平台（SCF/CI）中勾选加密存储。
+
+**代码风格**
+- 模块化设计，单文件不超过 300 行。
+- 函数职责单一，命名体现用途（如 `_build_notification`、`_is_window_open`）。
+- 新增子命令：`scripts/cli_commands/xxx.py` → 实现 `run(args)` → cli.py import + dispatch + argparse。
+- 变量名拒绝缩写（`dorm_lat` → `dormitory_lat`、`cur_offset` → `current_offset_degrees`）。
+
+**验证纪律**
+- 变更签名算法时同步更新 `scripts/sign.js`，并运行交叉验证测试。
+- 测试覆盖率目标：核心模块 90%+，部署模块 80%+。
+- 提交前确保 `python -m pytest tests/ -v` 全部通过。
+
+**文档同步**
+- 架构/功能变更时同步更新 README 目录结构、AGENTS.md（本地）、CHANGELOG。
+- 关键决策记录在 `reviews/` 审查记录中，包含决策理由与备选方案。
+
+**时区陷阱**
+- 所有 API 时间基于 **UTC**，显示时做 UTC+8 转换。
+- 打卡窗口为 UTC 13:00–14:30（北京时间 21:00–22:30）。
+- SCF Cron 使用北京时间直接配置（`0 5 21 * * ? *`），无需时区转换。
 
 ---
 
