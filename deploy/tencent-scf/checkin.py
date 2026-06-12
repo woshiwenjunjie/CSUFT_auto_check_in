@@ -237,7 +237,7 @@ class ApiTokenClient:
             return ""
         records = resp.get("data", {}).get("records", [])
         for task in records:
-            task_identifier = task.get("id", "")
+            task_identifier = task.get("taskId", "")
             if task_identifier:
                 return task_identifier
         return ""
