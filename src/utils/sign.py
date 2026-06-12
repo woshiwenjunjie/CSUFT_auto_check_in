@@ -1,3 +1,15 @@
+"""FlySource 签名算法与客户端凭据管理
+
+提供 FlySource-sign 请求头签名生成和 Basic 认证头构造。
+凭据可通过环境变量 FLYSOURCE_CLIENT_ID / FLYSOURCE_CLIENT_SECRET 覆盖，
+默认值来自微信小程序反编译源码（应用级公开常量），无需保密。
+
+Environment variables:
+  FLYSOURCE_CLIENT_ID      客户端 ID（默认按模式匹配 wxapp/web 版）
+  FLYSOURCE_CLIENT_SECRET  客户端密钥（同上）
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 import os
 from src.utils.crypto import md5, b64_encode
 

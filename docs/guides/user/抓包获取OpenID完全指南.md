@@ -76,7 +76,7 @@ Referer: https://servicewechat.com/wx0e47c34c9982aa09/7/page-frame.html
 | `GET` | HTTP 方法，从服务器获取数据 | — |
 | `/api/flySource-base/openApi/getOpenidByJsCode` | 飞源平台的"用 js_code 换 OpenID"接口 | 小程序源码中的 API 路径 |
 | `?jsCode=081xTk0w...` | `wx.login()` 生成的临时授权码（5分钟有效） | 微信 SDK 自动生成 |
-| `Host: simp.csuft.edu.cn` | 目标服务器：中南林业科技大学 | — |
+| `Host: simp.csuft.edu.cn` | 目标服务器：CSUFT | — |
 | `User-Agent: ... MicroMessenger/8.0.72 ...` | 声明自己是微信浏览器 | 微信自动设置 |
 | `Referer: https://servicewechat.com/wx0e47c34c9982aa09/...` | 声明请求来自哪个小程序页面 | 微信自动设置 |
 
@@ -152,7 +152,7 @@ grant_type=wxapp&tenantId=000000&username=2023XXXXXX&password=e10adc3949ba59abbe
 | **`Authorization: Basic ...`** | 请求头 | **客户端认证**。Base64 解码后是 `flysource_wise_wxapp:DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe`。每条请求都带，证明自己是官方小程序 |
 | `charset: utf-8` | 请求头 | 字符编码 |
 | `Web-Type: wxapp` | 请求头 | 声明这是微信小程序端发来的请求 |
-| `Tenant-Id: 000000` | 请求头 | 学校/租户 ID。中南林业科技大学固定为 `000000` |
+| `Tenant-Id: 000000` | 请求头 | 学校/租户 ID。CSUFT固定为 `000000` |
 | — | — | **以下是请求体（body）** |
 | `grant_type=wxapp` | 请求体 | OAuth2 授权类型。`wxapp` = 微信小程序登录 |
 | `tenantId=000000` | 请求体 | 租户 ID（与请求头重复，飞源的设计如此） |
@@ -210,7 +210,7 @@ FlySource-Auth   → 证明"我是已登录用户"（登录后才出现，值为
 FlySource-sign   → 防止请求伪造（登录后才出现，值为签名哈希）
 Referer          → 伪装微信小程序环境（服务器反爬校验）
 User-Agent       → 伪装微信浏览器（同上）
-Tenant-Id        → 标识学校（000000 = 中南林业科技大学）
+Tenant-Id        → 标识学校（000000 = CSUFT）
 Web-Type         → 标识客户端类型（wxapp = 微信小程序）
 charset          → 字符编码声明（utf-8）
 Content-Type     → 请求体格式（json / form）

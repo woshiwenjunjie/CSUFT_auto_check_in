@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """
-Auto Check-In CLI —— 中南林业科技大学自动晚点名打卡工具
+Auto Check-In CLI —— CSUFT自动晚点名打卡工具
 
-Commands:
-  setup            交互式首次配置向导（推荐新用户使用）
-  status           查看登录状态、任务信息、今日打卡记录
-  config           查看或管理本地配置（show / clear）
-  login-openid     OpenID 登录（推荐方式）
-  login            密码登录（备用）
-  tasks            查看打卡任务列表（自动记住任务 ID）
-  detail           查看任务详情（含宿舍坐标、精度上限）
-  checkin          一键打卡签到（自动模拟 GPS 偏移）
-  record           查询当日打卡状态
-  month            按月查询打卡记录
-   capture-openid   启动 mitmproxy 自动捕获 OpenID（无需手动翻包）
-   login-webvpn    WebVPN 登录（从浏览器复制 token，绕过 OpenID）
+架构：argparse + 子命令 dispatch 模式。每个子命令为独立模块
+在 scripts/cli_commands/ 下实现 run(args) 函数，cli.py 负责路由。
+
+Available commands:
+  setup         交互式首次配置向导（推荐新用户使用）
+  status        查看登录状态、任务信息、今日打卡记录
+  config        查看或管理本地配置（show / clear）
+  login-openid  OpenID 登录（推荐方式）
+  login         密码登录（备用方案）
+  tasks         查看打卡任务列表（自动记住任务 ID）
+  detail        查看任务详情（含宿舍坐标、精度上限）
+  checkin       一键打卡签到（自动模拟 GPS 偏移）
+  record        查询当日打卡状态
+  month         按月查询打卡记录
+  capture-openid 启动 mitmproxy 自动捕获 OpenID
+  login-webvpn  WebVPN 登录（绕过 OpenID）
 
 配置文件:  ~/.auto_check_in/config.json
 文档:      docs/guides/user/CLI教程.md
+
+Variable naming: All names must be meaningful and context-relevant.
 """
 
 import argparse
@@ -49,7 +54,7 @@ def _build_parser():
     """Build the argparse parser with all subcommands."""
     parser = argparse.ArgumentParser(
         prog="python scripts/cli.py",
-        description="中南林业科技大学自动晚点名打卡工具\n\n"
+        description="CSUFT自动晚点名打卡工具\n\n"
                     "新手上路：python scripts/cli.py setup   ← 推荐从这里开始",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"配置文件: {CONFIG_FILE}\n"
@@ -105,7 +110,7 @@ def _build_parser():
                "  python scripts/cli.py login-openid --save-password\n"
                "  python scripts/cli.py login-openid --bind 0       # 仅登录不绑定",
     )
-    p_openid.add_argument("--tenant", default="000000", help="学校租户 ID，默认 000000（中南林业科技大学）")
+    p_openid.add_argument("--tenant", default="000000", help="学校租户 ID，默认 000000（CSUFT）")
     p_openid.add_argument("openid", nargs="?", default="", help="微信 OpenID（o 开头约 28 位），留空则从配置读取")
     p_openid.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
     p_openid.add_argument("password", nargs="?", default=None, help="密码（不建议在命令行中明文输入）")
@@ -216,7 +221,7 @@ def _build_parser():
 def _show_welcome():
     """Print branded welcome screen when no command is given."""
     print()
-    print(c(Style.heading, "  中南林业科技大学  ·  自动晚点名打卡"))
+    print(c(Style.heading, "  CSUFT  ·  自动晚点名打卡"))
     print(c(Style.muted, "  ───────────────────────────────────────────"))
     print()
     print(c(Style.bold, "  🚀 快速开始（新用户 3 步搞定）"))

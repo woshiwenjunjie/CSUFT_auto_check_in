@@ -1,3 +1,10 @@
+"""MD5 哈希与 Base64 编解码工具函数
+
+封装 Python 标准库 hashlib 和 base64，统一输入输出编码为 UTF-8。
+所有函数均为纯函数，无副作用，可安全用于签名算法和凭据混淆。
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 import hashlib
 import base64
 

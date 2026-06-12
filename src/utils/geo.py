@@ -1,3 +1,15 @@
+"""GPS 坐标工具 — 球面距离计算与随机偏移模拟
+
+Haversine 公式用于验证打卡位置是否在宿舍精度范围内。
+random_offset 使用独立 Random 实例（seed 参数）避免污染全局随机状态，
+同时支持测试场景的确定性复现。
+
+Important caveats:
+  - 所有坐标单位为度（decimal degrees），距离单位为米
+  - random_offset 最大偏移量默认 0.0005°（约 55m），保留 6 位小数
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 import math
 import random
 

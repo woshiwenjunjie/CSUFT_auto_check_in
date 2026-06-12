@@ -1,3 +1,19 @@
+"""飞源 flySource 统一认证 API 客户端
+
+封装 8 个学校接口（认证/任务/打卡三组），统一处理签名、Basic 认证、
+指数退避重试和微信/Web 双模式环境头伪装。
+服务器会校验 Referer/User-Agent，缺失时返回误导性的"签名错误"。
+
+Environment variables:
+  CHECKIN_BASE_URL    API 基址（默认 https://simp.csuft.edu.cn）
+  WX_APP_ID           微信小程序 AppID
+  WX_VERSION          小程序版本号
+  WX_USER_AGENT       微信客户端 User-Agent（Android 微信）
+  WEB_REFERER         WebVPN Referer
+  WEB_USER_AGENT      WebVPN User-Agent
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 import atexit
 import json
 import os

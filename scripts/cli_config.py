@@ -1,4 +1,15 @@
-"""CLI 配置管理 — 持久化、密码混淆、安全输入"""
+"""CLI 配置管理 — JSON 持久化、密码 base64 混淆、安全终端输入
+
+配置存储于 ~/.auto_check_in/config.json，密码以 $obf:<base64> 格式存储
+（防止肩窥，非加密）。同时提供脱敏显示（_mask）和安全密码输入（secure_input）。
+
+Important caveats:
+  - 密码混淆仅防一眼看到明文，不作为安全加密手段
+  - 旧版明文密码在 load_config 中自动标记为 _needs_migration
+  - secure_input 在方 Windows 用 msvcrt，Unix 用 termios
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 
 import json
 import os

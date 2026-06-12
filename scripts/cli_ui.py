@@ -1,4 +1,14 @@
-"""CLI UI 组件 — ANSI 样式、终端输出辅助、Spin 动画"""
+"""CLI UI 组件 — ANSI 样式系统、格式化终端输出、Spinner 动画
+
+提供 Style 类（ANSI 转义码）+ c() 颜色守卫，支持 NO_COLOR 环境变量和
+isatty 自动检测。Spinner 使用 daemon 线程实现动画，非 TTY 环境自动静默。
+
+Important caveats:
+  - 颜色输出仅在 stdout 为 TTY 且 NO_COLOR 未设置时生效
+  - Spinner 为非线程安全的最小实现，仅适用于 CLI 单线程场景
+
+Variable naming: All names must be meaningful and context-relevant.
+"""
 
 import os
 import sys
