@@ -1,4 +1,4 @@
-# 中南林业科技大学自动晚点名打卡
+# CSUFT 自动晚点名打卡
 
 [![Tests](https://img.shields.io/badge/tests-67%2F67%20%E2%9C%85-green)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
@@ -15,11 +15,12 @@
 | 特性 | 说明 |
 |------|------|
 | 🔑 一键打卡 | 模拟 GPS 偏移，自动完成晚点名签到 |
-| 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 每天定时打卡 + 微信通知 |
+| 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
 | 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
 | 🧪 算法可验证 | 67 个自动化测试，JS/Python 签名交叉验证 |
 | 📱 OpenID 自动捕获 | 内置 mitmproxy 插件，抓包一键获取 OpenID |
 | 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
+| ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
 
 ---
 
@@ -105,6 +106,7 @@ python scripts/cli.py <command>
 | `login` | 密码登录（备用，服务器已禁用） |
 | `capture-openid` | 启动 mitmproxy 自动捕获 OpenID |
 | `tasks` | 查看打卡任务列表 |
+| `login-webvpn` | WebVPN Token 验证+保存（备用方案） |
 | `detail` | 查看任务详情（宿舍坐标、精度上限） |
 | `checkin` | 一键打卡签到 |
 | `record` | 查询当日/指定日期打卡记录 |
@@ -341,6 +343,7 @@ wx.login() → getOpenidByJsCode → oauth/token (grant_type=wxapp)
 ```
 
 > 注意：密码登录（`grant_type=password`）已被服务器禁用，必须使用 OpenID 方式。
+> 另提供 WebVPN 客户端模式（`client_mode: web`），通过 CAS SSO 登录 WebVPN 后调用办公版 API。
 
 ### 请求头要求
 
