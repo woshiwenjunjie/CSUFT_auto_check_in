@@ -268,8 +268,7 @@ auto_check_in/
 │   ├── memory/             # 里程碑记录
 │   └── review/             # 代码审查记录
 ├── .github/workflows/      # CI/CD 配置
-├── wxapkgs/                # 小程序反编译源码
-└── references/             # 外部参考资料
+└── references/             # 外部参考资料 + 小程序反编译源码
 ```
 
 ---
