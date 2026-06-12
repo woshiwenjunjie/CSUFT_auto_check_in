@@ -253,22 +253,23 @@ auto_check_in/
 │   ├── models/             # (预留) 数据模型
 │   ├── services/           # (预留) 业务服务
 │   └── main.py             # FastAPI 入口
-├── scripts/                # 可执行脚本
-│   ├── cli.py              # CLI 入口
-│   ├── cli_commands/       # 子命令实现（10 个命令）
+├── scripts/                # CLI 工具 + GitHub Actions 脚本
+│   ├── cli.py              # CLI 入口（13 个子命令）
+│   ├── cli_commands/       # 子命令实现
 │   ├── cli_config.py       # 配置管理
 │   ├── cli_ui.py           # 终端 UI 组件
 │   ├── capture_addon.py    # mitmproxy OpenID 捕获插件
 │   ├── auto_checkin.sh     # GitHub Actions 执行脚本
 │   └── sign.js             # JS 签名参考实现
+├── deploy/                 # 非 GitHub 部署方案
+│   └── tencent-scf/        # 腾讯云 SCF 部署（推荐）
 ├── tests/                  # 测试（67 个用例）
 ├── docs/                   # 文档
-│   ├── guides/user/        # 用户指南
-│   ├── guides/dev/         # 开发指南
-│   ├── memory/             # 里程碑记录
-│   └── review/             # 代码审查记录
-├── .github/workflows/      # CI/CD 配置
-└── references/             # 外部参考资料 + 小程序反编译源码
+│   └── guides/             # 用户指南 + 开发指南
+├── references/             # 外部参考资料 + 小程序反编译源码
+├── reviews/                # 代码审查记录
+├── frontend/               # (预留) 前端页面
+└── .github/workflows/      # GitHub Actions CI/CD
 ```
 
 ---
