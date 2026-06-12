@@ -39,6 +39,10 @@ logs/
 *.wxapkg
 decompiled/
 
+# AI protocol files (local only)
+AGENTS.md
+CLAUDE.md
+
 # Test results
 reports/
 .coverage
