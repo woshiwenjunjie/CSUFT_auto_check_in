@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """腾讯云 SCF 一键打包部署脚本
 
-将 SCF 函数代码打包为 zip 并通过 SCF CLI 上传到腾讯云。支持三种模式：
-  1. python deploy/tencent-scf/deploy.py            打包 + 部署 + 创建触发器
-  2. python deploy/tencent-scf/deploy.py --dry-run  仅打包，不上传
-  3. python deploy/tencent-scf/deploy.py --invoke   部署后立即触发测试
+将 SCF 函数代码打包为 zip 并通过 SCF CLI 上传到腾讯云。支持多种模式：
+  1. python deploy/tencent-scf/deploy.py                       打包 + 部署 + 创建触发器
+  2. python deploy/tencent-scf/deploy.py --dry-run             仅打包，不上传
+  3. python deploy/tencent-scf/deploy.py --invoke              部署后立即触发测试
+  4. python deploy/tencent-scf/deploy.py gen-env               从 password.txt 生成环境变量 JSON
+  5. python deploy/tencent-scf/deploy.py --env-json scf_env.json  部署时附带环境变量
 
 打包结构:
     scf_package.zip/
@@ -42,7 +44,10 @@
     - build_package(): try/except/finally 三明治 — pip 失败时清理临时目录
     - main(): 捕获 RuntimeError/OSError，sys.exit(1) 避免继续部署
 """
+from __future__ import annotations
+
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -111,7 +116,7 @@ def build_package() -> str:
         shutil.rmtree(build_dir, ignore_errors=True)
 
 
-def deploy_scf(zip_path: str, dry_run: bool = False):
+def deploy_scf(zip_path: str, dry_run: bool = False, env_cli_arg: list[str] | None = None) -> None:
     """通过 SCF CLI 更新或创建函数"""
     if dry_run:
         print(f"\n[部署] DRY RUN — 跳过上传")
@@ -121,6 +126,8 @@ def deploy_scf(zip_path: str, dry_run: bool = False):
         print(f"  定时:   {TIMER_CRON} (北京时间)")
         print(f"  入口:   handler.main_handler")
         print(f"  包:     {zip_path}")
+        if env_cli_arg:
+            print(f"  环境变量: 已配置 {len(env_cli_arg[1])} 个")
         print(f"\n  手动上传: SCF 控制台 → 函数代码 → 提交")
         return
 
@@ -134,12 +141,14 @@ def deploy_scf(zip_path: str, dry_run: bool = False):
         print(f"    定时:   {TIMER_CRON} (北京时间)")
         return
 
+    env_args = env_cli_arg or []
+
     print(f"\n[部署] 上传到 SCF...")
     result = subprocess.run(
         ["scf", "function", "update",
          "--function-name", FUNCTION_NAME,
          "--region", REGION,
-         "--code", zip_path],
+         "--code", zip_path] + env_args,
         capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -151,7 +160,7 @@ def deploy_scf(zip_path: str, dry_run: bool = False):
              "--runtime", RUNTIME,
              "--entry-point", "handler.main_handler",
              "--code", zip_path,
-             "--description", "CSUFT 自动晚点名打卡"],
+             "--description", "CSUFT 自动晚点名打卡"] + env_args,
             capture_output=True, text=True,
         )
     if result.returncode == 0:
@@ -161,7 +170,7 @@ def deploy_scf(zip_path: str, dry_run: bool = False):
         print(f"  手动上传: SCF 控制台上传 {zip_path}")
 
 
-def create_timer_trigger(dry_run: bool = False):
+def create_timer_trigger(dry_run: bool = False) -> None:
     if dry_run:
         print(f"\n[触发器] DRY RUN — 跳过")
         print(f"  定时: {TIMER_CRON} (每天 21:05 北京时间)")
@@ -184,7 +193,7 @@ def create_timer_trigger(dry_run: bool = False):
         print(f"  手动: SCF 控制台 → 触发管理 → 创建定时触发器 → {TIMER_CRON}")
 
 
-def invoke_test():
+def invoke_test() -> None:
     print(f"\n[测试] 手动触发 {FUNCTION_NAME}...")
     result = subprocess.run(
         ["scf", "function", "invoke",
@@ -201,11 +210,71 @@ def invoke_test():
         print(f"  ❌ 调用失败: {result.stderr}")
 
 
-def main():
+def gen_env_json() -> None:
+    """从 password.txt 生成 SCF 控制台可导入的 JSON 环境变量文件。
+
+    读取项目根目录 password.txt 中 KEY=VALUE 格式的行（跳过注释和空行），
+    输出 `scf_env.json`，可直接在 SCF 控制台 → 函数配置 → 环境变量 → 导入。
+    """
+    password_path = PROJECT_DIR / "password.txt"
+    if not password_path.exists():
+        print("[错误] password.txt 不存在，请在项目根目录创建")
+        print("  格式: KEY=VALUE（每行一个，# 开头的行是注释）")
+        sys.exit(1)
+
+    # 排除项：这些是部署凭证，不是 SCF 环境变量
+    exclude_keys = {"SecretId", "SecretKey", "secret_id", "secret_key"}
+
+    env_vars = {}
+    for line in password_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.strip()
+        val = val.strip()
+        if key and val and key not in exclude_keys:
+            env_vars[key] = val
+
+    if not env_vars:
+        print("[错误] password.txt 中未找到有效 KEY=VALUE 条目")
+        sys.exit(1)
+
+    output_path = SCRIPT_DIR / "scf_env.json"
+    output_path.write_text(
+        json.dumps(env_vars, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    print(f"[完成] 已生成 {output_path.name} ({len(env_vars)} 个变量)")
+    print()
+    print("  使用方法:")
+    print(f"    1. SCF 控制台 -> 函数配置 -> 环境变量 -> 导入")
+    print(f"    2. 选择 {output_path.name}")
+    print(f"    3. 敏感字段手动勾选「加密」")
+    print()
+    print("  [注意] JSON 导入后所有变量都是明文，")
+    print("  需要手动将 OpenID/密码/ServerKey 逐个勾选「加密」存储")
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(description="部署 Auto Check-In 到腾讯云 SCF")
     parser.add_argument("--dry-run", action="store_true", help="仅打包，不部署")
     parser.add_argument("--invoke", action="store_true", help="部署后触发测试")
+    parser.add_argument("--env-json", type=str, default="",
+                        help="从 JSON 文件读取环境变量（SCF 控制台导出的格式）")
+
+    # gen-env 子命令：从 password.txt 生成环境变量 JSON
+    sub = parser.add_subparsers(dest="command")
+    p_gen = sub.add_parser("gen-env", help="从 password.txt 生成 SCF 环境变量 JSON")
+
     args = parser.parse_args()
+
+    # gen-env 子命令先处理
+    if getattr(args, "command", None) == "gen-env":
+        gen_env_json()
+        return
 
     print("=" * 50)
     print(f"  Auto Check-In → Tencent SCF")
@@ -215,9 +284,22 @@ def main():
     print(f"  定时:   {TIMER_CRON} (每天 21:05 北京时间)")
     print("=" * 50)
 
+    # 读取环境变量 JSON
+    env_cli_arg = []
+    if args.env_json:
+        env_path = Path(args.env_json)
+        if not env_path.exists():
+            print(f"❌ 环境变量文件不存在: {args.env_json}")
+            sys.exit(1)
+        env_data = json.loads(env_path.read_text(encoding="utf-8"))
+        # 转为 SCF CLI 格式: {"Variables": [{"Key": k, "Value": v}]}
+        variables = [{"Key": k, "Value": v} for k, v in env_data.items()]
+        env_cli_arg = ["--environment", json.dumps({"Variables": variables})]
+        print(f"  📦 环境变量: {len(variables)} 个（来自 {args.env_json}）")
+
     try:
         zip_path = build_package()
-        deploy_scf(zip_path, dry_run=args.dry_run)
+        deploy_scf(zip_path, dry_run=args.dry_run, env_cli_arg=env_cli_arg)
     except (RuntimeError, OSError) as e:
         print(f"\n❌ 构建失败: {e}")
         sys.exit(1)

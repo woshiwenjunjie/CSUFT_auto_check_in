@@ -1,30 +1,31 @@
 """腾讯云 SCF 函数入口
 
-该模块是 SCF 定时触发器的主入口。SCF 运行时调用 `main_handler(event, context)`
-启动一次完整打卡流程。异常安全网确保即使 `run_checkin()` 抛出未预期异常，
-也能通过 Server酱 通知用户。
+默认多用户入口。所有流程通过 `run_multi_checkin()` 执行，即使只打一个账号。
+无需单独设 `CHECKIN_PROFILES`：不设时自动回退 bare 变量 `CHECKIN_OPENID` 等。
+异常安全网确保未预期异常也能通过 Server酱 通知。
 
 触发器:
     定时触发器（每天 21:05，SCF 控制台默认北京时间）
 
-事件来源:
-    - 定时触发器: event 为 {}（空字典）
-    - 手动测试: event 可含任意键（当前忽略）
-    - 健康检查: event 为空时返回 {"status": "healthy"}
-
-安全边界:
-    `main_handler` 内 try/except 捕获所有 Exception，异常时构造
-    `{"status": "error", "msg": "未捕获异常: ..."}` 并发送通知。
-    避免 SCF 调用失败时用户完全不知情。
-
-环境变量（由 SCF 控制台配置，全部敏感字段勾选加密）:
-    CHECKIN_OPENID     微信 OpenID（必填，建议加密）
-    CHECKIN_USERNAME   学号（必填，建议加密）
-    CHECKIN_PASSWORD   密码（必填，必须加密）
-    CHECKIN_TASK_ID    打卡任务 ID（可选）
-    SERVERCHAN_KEY     Server酱 SendKey（可选，建议加密）
+环境变量:
+    ─ 多用户模式 ─
+    CHECKIN_PROFILES=USER_1,USER_2           profile 列表（逗号分隔，缺省="default"）
+    CHECKIN_OPENID_USER_1                    账号 1 的 OpenID
+    CHECKIN_USERNAME_USER_1                  账号 1 的学号
+    CHECKIN_PASSWORD_USER_1                  账号 1 的密码（免密码可不设）
+    CHECKIN_OPENID_USER_2 / USERNAME_USER_2  账号 2
+    ...
+    ─ 单用户模式（不设 CHECKIN_PROFILES 时自动回退）─
+    CHECKIN_OPENID           OpenID
+    CHECKIN_USERNAME         学号
+    CHECKIN_PASSWORD         密码
+    ─ 通用 ─
+    CHECKIN_TASK_ID          任务 ID（可选，不设则自动获取）
+    SERVERCHAN_KEY           Server酱 SendKey（可选，建议加密）
 """
-from checkin import run_checkin, _build_notification, _date_str
+from __future__ import annotations
+
+from checkin import run_multi_checkin, _build_notification, _date_str
 from notify import send_serverchan
 
 
@@ -32,7 +33,10 @@ def main_handler(event: dict, context: dict) -> dict:
     if not event:
         return {"status": "healthy"}
     try:
-        result = run_checkin()
+        # 默认多用户入口 — 兼容单用户（无后缀变量回退到 bare 变量）
+        # 设 CHECKIN_PROFILES=USER_1,USER_2 打卡指定账号
+        # 不设 CHECKIN_PROFILES 则打卡 "default"，回退读取 CHECKIN_OPENID/USERNAME
+        result = run_multi_checkin()
     except Exception as e:
         print(f"[错误] 未捕获异常: {e}")
         result = {"status": "error", "msg": f"未捕获异常: {e}", "date": _date_str()}

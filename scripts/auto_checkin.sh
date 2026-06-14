@@ -101,6 +101,34 @@ write_github_summary() {
 
 
 # ═══════════════════════════════════════════════════════════
+# 多用户 profile 支持
+# ═══════════════════════════════════════════════════════════
+
+_get_env() {
+    local key="$1" profile="$2" default="${3:-}"
+    local val=""
+    if [ -n "$profile" ] && [ "$profile" != "default" ]; then
+        eval "val=\"\${${key}_${profile}:-}\""
+    fi
+    if [ -z "$val" ]; then
+        eval "val=\"\${${key}:-}\""
+    fi
+    echo "${val:-$default}"
+}
+
+# 解析 profiles（逗号分隔，默认 default）
+PROFILES_STR="${CHECKIN_PROFILES:-default}"
+IFS=',' read -ra PROFILE_NAMES <<< "$PROFILES_STR"
+# trim whitespace
+PROFILE_NAMES_CLEAN=()
+for pname in "${PROFILE_NAMES[@]}"; do
+    pname=$(echo "$pname" | xargs)
+    [ -n "$pname" ] && PROFILE_NAMES_CLEAN+=("$pname")
+done
+PROFILE_NAMES=("${PROFILE_NAMES_CLEAN[@]}")
+unset PROFILE_NAMES_CLEAN
+
+# ═══════════════════════════════════════════════════════════
 # 主流程
 # ═══════════════════════════════════════════════════════════
 
@@ -129,26 +157,47 @@ echo "" | tee -a "$LOG_FILE"
 # ── [1/5] 配置 ────────────────────────────────────────
 CONFIG_DIR="$HOME/.auto_check_in"
 mkdir -p "$CONFIG_DIR"
-cat > "$CONFIG_DIR/config.json" << EOF
+
+# 写入多 profile 格式 config.json
 {
-  "tenant_id": "000000",
-  "username": "${CHECKIN_USERNAME}",
-  "openid": "${CHECKIN_OPENID}",
-  "password": "${CHECKIN_PASSWORD}",
-  "task_id": "${CHECKIN_TASK_ID:-}"
-}
-EOF
-echo "[1/5] 配置完成  $(now_ts)" | tee -a "$LOG_FILE"
+  echo '{'
+  echo '  "current_profile": "'"${PROFILE_NAMES[0]}"'",'
+  echo '  "profiles": {'
+  first=true
+  for pname in "${PROFILE_NAMES[@]}"; do
+    openid=$(_get_env "CHECKIN_OPENID" "$pname")
+    username=$(_get_env "CHECKIN_USERNAME" "$pname")
+    password=$(_get_env "CHECKIN_PASSWORD" "$pname")
+    [ -z "$openid" ] && echo "  ⚠️  [$pname] CHECKIN_OPENID 缺失，跳过" | tee -a "$LOG_FILE" && continue
+    [ -z "$username" ] && echo "  ⚠️  [$pname] CHECKIN_USERNAME 缺失，跳过" | tee -a "$LOG_FILE" && continue
+    $first || echo ','
+    first=false
+    printf '    "%s": {\n      "tenant_id": "000000",\n      "username": "%s",\n      "openid": "%s"' "$pname" "$username" "$openid"
+    if [ -n "$password" ]; then
+      printf ',\n      "password": "%s"' "$password"
+    fi
+    printf '\n    }'
+  done
+  echo ''
+  echo '  }'
+  echo '}'
+} > "$CONFIG_DIR/config.json"
+
+echo "[1/5] 配置完成（${#PROFILE_NAMES[@]} 个 profile） $(now_ts)" | tee -a "$LOG_FILE"
 
 # ── [2/5] 依赖 ────────────────────────────────────────
 echo "[2/5] 安装依赖  $(now_ts)" | tee -a "$LOG_FILE"
 pip install -q -r requirements.txt 2>&1 | tee -a "$LOG_FILE"
 
-# ── [3/5] 登录 ────────────────────────────────────────
-echo "[3/5] 登录校园网  $(now_ts)" | tee -a "$LOG_FILE"
+# ── [3/5] 登录第一个账号 ─────────────────────────────
+FIRST_PROFILE="${PROFILE_NAMES[0]}"
+FIRST_OPENID=$(_get_env "CHECKIN_OPENID" "$FIRST_PROFILE")
+FIRST_USERNAME=$(_get_env "CHECKIN_USERNAME" "$FIRST_PROFILE")
+
+echo "[3/5] 登录 ${FIRST_PROFILE}  $(now_ts)" | tee -a "$LOG_FILE"
 
 LOGIN_OUTPUT=$(python scripts/cli.py login-openid \
-  "${CHECKIN_OPENID}" "${CHECKIN_USERNAME}" --bind 0 2>&1) || true
+  "${FIRST_OPENID}" "${FIRST_USERNAME}" --bind 0 2>&1) || true
 echo "$LOGIN_OUTPUT" | tee -a "$LOG_FILE"
 
 if ! echo "$LOGIN_OUTPUT" | grep -q "登录成功"; then
@@ -182,123 +231,113 @@ if [ -z "${CHECKIN_TASK_ID:-}" ]; then
 fi
 
 # ── [5/5] 打卡 ────────────────────────────────────────
-echo "[5/5] 执行打卡  $(now_ts)" | tee -a "$LOG_FILE"
+echo "[5/5] 执行打卡（${#PROFILE_NAMES[@]} 个账号） $(now_ts)" | tee -a "$LOG_FILE"
 
-CHECKIN_OUTPUT=$(python scripts/cli.py checkin 2>&1) || true
+PROFILES_ARG=$(IFS=,; echo "${PROFILE_NAMES[*]}")
+CHECKIN_OUTPUT=$(python scripts/cli.py checkin --profiles "$PROFILES_ARG" 2>&1) || true
 echo "$CHECKIN_OUTPUT" | tee -a "$LOG_FILE"
 
-# 优先用机器可读的 CHECKIN_RESULT 行（不受 ANSI 颜色影响）
-RESULT_LINE=$(echo "$CHECKIN_OUTPUT" | grep -oP 'CHECKIN_RESULT:.*' | head -1)
-if [ -n "${RESULT_LINE}" ]; then
-    STATUS_RAW=$(parse_result_field "$RESULT_LINE" "status")
-    CHECKIN_DATE=$(parse_result_field "$RESULT_LINE" "date")
+# ═══════════════════════════════════════════════════════════
+# 结果判断
+# ═══════════════════════════════════════════════════════════
+
+SUMMARY+="\n### 📋 打卡详情\n"
+
+if echo "$CHECKIN_OUTPUT" | grep -q "打卡汇总"; then
+    # ── 多用户模式：提取汇总表格 ──
+    SUMMARY+="\n\`\`\`\n"
+    SUMMARY+="$(echo "$CHECKIN_OUTPUT" | grep -E '^\s+[✓✗]' | sed 's/^  //' || echo '')"
+    SUMMARY+="\n\`\`\`\n"
+
+    # 统计成功/失败
+    SUCCESS_COUNT=$(echo "$CHECKIN_OUTPUT" | grep -c '✓')
+    FAIL_COUNT=$(echo "$CHECKIN_OUTPUT" | grep -c '✗')
+    TOTAL_COUNT=$((SUCCESS_COUNT + FAIL_COUNT))
+
+    echo "  => 结果: ${SUCCESS_COUNT}/${TOTAL_COUNT} 成功" | tee -a "$LOG_FILE"
+
+    SUMMARY+="\n**汇总**：${SUCCESS_COUNT}/${TOTAL_COUNT} 个账号打卡成功\n"
+
+    DETAILS=$(echo "$CHECKIN_OUTPUT" | grep -E '^\s+[✓✗]' | sed 's/^  //')
+
+    if [ "$FAIL_COUNT" -eq 0 ]; then
+        NOTIFY_TITLE="✅ CSUFT 打卡成功 · ${RUN_DATE_SHORT}"
+        NOTIFY_BODY="## ✅ 全部 ${TOTAL_COUNT} 个账号打卡成功\n\n${DETAILS}\n\n🕐 ${RUN_DATE} 北京时间"
+        TELEGRAM_MSG="✅ ${SUCCESS_COUNT}/${TOTAL_COUNT} 打卡成功"
+    elif [ "$FAIL_COUNT" -lt "$TOTAL_COUNT" ]; then
+        NOTIFY_TITLE="⚠️ CSUFT 部分打卡成功 · ${RUN_DATE_SHORT}"
+        NOTIFY_BODY="## ⚠️ 部分打卡成功（${SUCCESS_COUNT}/${TOTAL_COUNT}）\n\n${DETAILS}\n\n🕐 ${RUN_DATE} 北京时间"
+        TELEGRAM_MSG="⚠️ ${SUCCESS_COUNT}/${TOTAL_COUNT} 部分成功"
+    else
+        NOTIFY_TITLE="❌ CSUFT 打卡失败 · ${RUN_DATE_SHORT}"
+        NOTIFY_BODY="## ❌ 全部 ${TOTAL_COUNT} 个账号均失败\n\n${DETAILS}\n\n🕐 ${RUN_DATE} 北京时间"
+        TELEGRAM_MSG="❌ ${SUCCESS_COUNT}/${TOTAL_COUNT} 全部失败"
+    fi
+
+    notify "$NOTIFY_TITLE" "$NOTIFY_BODY" "$TELEGRAM_MSG"
+
 else
-    STATUS_RAW=$(extract_field "$CHECKIN_OUTPUT" "状态")
-    CHECKIN_DATE=$(extract_field "$CHECKIN_OUTPUT" "日期")
+    # ── 单用户模式：保持原有逻辑 ──
+    RESULT_LINE=$(echo "$CHECKIN_OUTPUT" | grep -oP 'CHECKIN_RESULT:.*' | head -1)
+    if [ -n "${RESULT_LINE}" ]; then
+        STATUS_RAW=$(parse_result_field "$RESULT_LINE" "status")
+        CHECKIN_DATE=$(parse_result_field "$RESULT_LINE" "date")
+    else
+        STATUS_RAW=$(extract_field "$CHECKIN_OUTPUT" "状态")
+        CHECKIN_DATE=$(extract_field "$CHECKIN_OUTPUT" "日期")
+    fi
+    STATUS_RAW="${STATUS_RAW:-未知}"
+    CHECKIN_DATE="${CHECKIN_DATE:-${RUN_DATE_SHORT}}"
+    DISTANCE=$(extract_field "$CHECKIN_OUTPUT" "与宿舍距离")
+    DISTANCE="${DISTANCE:--}"
+
+    case "$STATUS_RAW" in
+        "已打卡"|"正常"|"迟到")
+            SUMMARY+="| 打卡 | ✅ 成功 |\n"
+            SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n| 状态 | ${STATUS_RAW} |\n"
+            [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
+
+            BODY="## ✅ 晚点名打卡 · 成功\n\n**${CHECKIN_DATE}** | 状态：${STATUS_RAW}"
+            [ "${DISTANCE}" != "-" ] && BODY+=" | 距宿舍 ${DISTANCE}"
+            BODY+="\n\n---\n🕐 ${RUN_DATE} 北京时间"
+
+            notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
+            ;;
+
+        "请假中"|"未归"|"走读中"|"离校中"|"外宿中")
+            SUMMARY+="| 打卡 | ⚠️ ${STATUS_RAW} |\n"
+            SUMMARY+="\n**结果**：${STATUS_RAW}\n"
+            BODY="## ⚠️ 打卡状态：${STATUS_RAW}\n\n**${CHECKIN_DATE}** — 状态：${STATUS_RAW}"
+            notify "⚠️ CSUFT 状态 ${STATUS_RAW} · ${CHECKIN_DATE}" "${BODY}" "⚠️ 状态 ${STATUS_RAW} ${CHECKIN_DATE}"
+            ;;
+
+        *)
+            if echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
+                SUMMARY+="| 打卡 | ❌ 凭据过期 |\n"
+                SUMMARY+="\n**失败原因**：Token 已过期\n"
+                BODY="## ❌ 登录凭据已过期\n\n**${RUN_DATE}**\n\n> 学校系统 Token 已过期，需在本地重新登录：\n> \`login-openid\` → 更新 GitHub Secrets"
+                notify "❌ CSUFT Token 过期" "${BODY}" "❌ Token 过期"
+                write_github_summary "${SUMMARY}"
+                exit 1
+
+            elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
+                SUMMARY+="| 打卡 | ⏳ 未到时间 |\n"
+                SUMMARY+="\n**说明**：不在签到窗口内\n"
+                BODY="## ⏳ 未到签到时间\n\n**${RUN_DATE}** — 不在打卡窗口内\n\n> 窗口：**21:00–22:30 北京时间**（UTC 13:00–14:30）\n> 任务定时 21:05 北京时间 自动执行"
+                notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
+
+            else
+                SUMMARY+="| 打卡 | ❌ 失败 |\n"
+                LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
+                SUMMARY+="\n**失败原因**：服务器返回未知错误\n\`\`\`\n${LAST_LINES}\n\`\`\`\n"
+                BODY="## ❌ 打卡失败\n\n**${RUN_DATE}**\n\n\`\`\`\n${LAST_LINES}\n\`\`\`\n\n🔍 请在 Actions 页面查看完整日志"
+                notify "❌ CSUFT 打卡失败 · ${RUN_DATE}" "${BODY}" "❌ 打卡失败 ${RUN_DATE}"
+                write_github_summary "${SUMMARY}"
+                exit 1
+            fi
+            ;;
+    esac
 fi
-STATUS_RAW="${STATUS_RAW:-未知}"
-CHECKIN_DATE="${CHECKIN_DATE:-${RUN_DATE_SHORT}}"
-DISTANCE=$(extract_field "$CHECKIN_OUTPUT" "与宿舍距离")
-DISTANCE="${DISTANCE:--}"
-
-# ═══════════════════════════════════════════════════════════
-# 结果判断 → 全部发送通知，写明原因
-# ═══════════════════════════════════════════════════════════
-
-# 使用机器可读的 CHECKIN_RESULT 行中的 status 字段判断结果
-# 状态值来自服务器 signStatusName: 正常/迟到/请假中/未归/走读中/离校中/外宿中
-# 兼容旧 CLI STATUS_MAP: 已打卡=正常
-case "$STATUS_RAW" in
-    "已打卡"|"正常"|"迟到")
-        # ── 🎉 成功 ──
-        SUMMARY+="| 打卡 | ✅ 成功 |\n"
-        SUMMARY+="\n### 📋 打卡详情\n"
-        SUMMARY+="| 项目 | 结果 |\n|------|------|\n"
-        SUMMARY+="| 日期 | ${CHECKIN_DATE} |\n"
-        SUMMARY+="| 状态 | ${STATUS_RAW} |\n"
-        [ "${DISTANCE}" != "-" ] && SUMMARY+="| 位置 | 距宿舍 ${DISTANCE} |\n"
-        SUMMARY+="\n⏰ ${RUN_DATE} 北京时间"
-
-        BODY="## ✅ 晚点名打卡 · 成功
-
-**${CHECKIN_DATE}** | 状态：${STATUS_RAW}"
-
-        [ "${DISTANCE}" != "-" ] && BODY+=" | 距宿舍 ${DISTANCE}"
-
-        BODY+="
-
----
-🕐 ${RUN_DATE} 北京时间"
-
-        notify "✅ CSUFT 打卡成功 · ${CHECKIN_DATE}" "${BODY}" "✅ 打卡成功 ${CHECKIN_DATE} | ${STATUS_RAW}"
-        ;;
-
-    "请假中"|"未归"|"走读中"|"离校中"|"外宿中")
-        # ── 状态已更新但非正常打卡（如请假、未归等）──
-        SUMMARY+="| 打卡 | ⚠️ ${STATUS_RAW} |\n"
-        SUMMARY+="\n**结果**：${STATUS_RAW}\n"
-
-        BODY="## ⚠️ 打卡状态：${STATUS_RAW}
-
-**${CHECKIN_DATE}** — 状态：${STATUS_RAW}"
-
-        notify "⚠️ CSUFT 状态 ${STATUS_RAW} · ${CHECKIN_DATE}" "${BODY}" "⚠️ 状态 ${STATUS_RAW} ${CHECKIN_DATE}"
-        ;;
-
-    *)
-        # 检查原始输出中的特定错误信息（这些在 CHECKIN_RESULT 之前出现）
-        if echo "$CHECKIN_OUTPUT" | grep -q "Token 已过期"; then
-            # ── Token 过期 ──
-            SUMMARY+="| 打卡 | ❌ 凭据过期 |\n"
-            SUMMARY+="\n**失败原因**：Token 已过期\n"
-
-            BODY="## ❌ 登录凭据已过期
-
-**${RUN_DATE}**
-
-> 学校系统 Token 已过期，需在本地重新登录：
-> \`login-openid\` → 更新 GitHub Secrets"
-
-            notify "❌ CSUFT Token 过期" "${BODY}" "❌ Token 过期"
-            write_github_summary "${SUMMARY}"
-            exit 1
-
-        elif echo "$CHECKIN_OUTPUT" | grep -qE "未到签到时间|不在"; then
-            # ── 不在窗口 ──
-            SUMMARY+="| 打卡 | ⏳ 未到时间 |\n"
-            SUMMARY+="\n**说明**：不在签到窗口内\n"
-
-            BODY="## ⏳ 未到签到时间
-
-**${RUN_DATE}** — 不在打卡窗口内
-
-> 窗口：**21:00–22:30 北京时间**（UTC 13:00–14:30）
-> 任务定时 21:05 北京时间 自动执行"
-
-            notify "⏳ CSUFT 未到签到时间 · ${RUN_DATE}" "${BODY}" "⏳ 未到签到时间 ${RUN_DATE}"
-
-        else
-            # ── 未知错误 ──
-            SUMMARY+="| 打卡 | ❌ 失败 |\n"
-            LAST_LINES=$(echo "$CHECKIN_OUTPUT" | tail -8)
-            SUMMARY+="\n**失败原因**：服务器返回未知错误\n\`\`\`\n${LAST_LINES}\n\`\`\`\n"
-
-            BODY="## ❌ 打卡失败
-
-**${RUN_DATE}**
-
-\`\`\`
-${LAST_LINES}
-\`\`\`
-
-🔍 请在 Actions 页面查看完整日志"
-
-            notify "❌ CSUFT 打卡失败 · ${RUN_DATE}" "${BODY}" "❌ 打卡失败 ${RUN_DATE}"
-            write_github_summary "${SUMMARY}"
-            exit 1
-        fi
-        ;;
-esac
 
 # ── 成功路径收尾 ────────────────────────────────────
 SUMMARY+="\n---\n⏰ ${RUN_DATE} 北京时间 · [查看日志](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})\n"

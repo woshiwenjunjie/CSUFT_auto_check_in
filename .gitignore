@@ -16,6 +16,7 @@ venv/
 .env.local
 .env.*
 password.txt
+deploy/tencent-scf/scf_env.json
 
 # IDE
 .vscode/
@@ -49,9 +50,13 @@ docs/memory/
 docs/plan/
 docs/plan.md
 docs/review/
+docs/superpowers/
 
 # Test results
 reports/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Local test files
+_test_*.py

@@ -36,6 +36,8 @@
     CHECKIN_TASK_ID    打卡任务 ID（可选，不设则自动获取第一条）
     SERVERCHAN_KEY     Server酱 SendKey（可选，建议加密）
 """
+from __future__ import annotations
+
 import json
 import os
 from datetime import datetime, timezone, timedelta
@@ -102,9 +104,6 @@ def _build_notification(result: dict) -> tuple[str, str]:
         body = f"## ✅ 晚点名打卡 · 成功\n\n**{date}** | 状态：{msg}"
         if distance:
             body += f" | 距宿舍 {distance}"
-        if detail:
-            body += f"\n\n{detail}"
-        body += f"\n\n---\n🕐 {now} 北京时间"
     elif status == "duplicate":
         title = f"⏰ CSUFT 今日已打卡 · {date}"
         body = (f"## ⏰ 今日已打卡\n\n**{date}** — 今日已签过到，无需重复操作\n\n"
@@ -117,9 +116,15 @@ def _build_notification(result: dict) -> tuple[str, str]:
     elif status == "nowindow":
         title = f"⏳ CSUFT 未到签到时间 · {now}"
         body = f"## ⏳ 未到签到时间\n\n**{now}** — {msg}\n\n> 窗口：**21:00–22:30 北京时间**（UTC 13:00–14:30）\n> 定时任务每天 21:05 自动执行"
+    elif status == "partial":
+        title = f"⚠️ CSUFT 部分打卡成功 · {now}"
+        body = f"## ⚠️ 部分打卡成功\n\n**{now}** — {msg}"
     else:
         title = f"❌ CSUFT 打卡失败 · {now}"
-        body = f"## ❌ 打卡失败\n\n**{now}**\n\n```\n{msg}\n```\n\n> 查看 SCF 日志定位具体原因"
+        body = f"## ❌ 打卡失败\n\n**{now}**\n\n```\n{msg}\n```"
+    if detail:
+        body += f"\n\n{detail}"
+    body += f"\n\n---\n🕐 {now} 北京时间"
     return title, body
 
 
@@ -131,44 +136,53 @@ def _notify_and_return(result: dict) -> dict:
     return result
 
 
-def run_checkin() -> dict:
-    """SCF 打卡主入口：登录 → 任务 → 打卡 → 确认 → 通知返回"""
-    openid = get_env_str("CHECKIN_OPENID")
-    username = get_env_str("CHECKIN_USERNAME")
-    password = get_env_str("CHECKIN_PASSWORD")
-    task_id = get_env_str("CHECKIN_TASK_ID", "")
+def _get_profile_env(profile_name: str, key: str, default: str = "") -> str:
+    """读取 profile 环境变量，优先带后缀，兜底无后缀（兼容旧版单用户配置）。"""
+    val = get_env_str(f"{key}_{profile_name}")
+    if val:
+        return val
+    return get_env_str(key, default)
+
+
+def _checkin_one(profile_name: str) -> dict:
+    """为一个账号执行登录→任务→打卡→确认，返回结果字典。"""
+    openid = _get_profile_env(profile_name, "CHECKIN_OPENID")
+    username = _get_profile_env(profile_name, "CHECKIN_USERNAME")
+    password = _get_profile_env(profile_name, "CHECKIN_PASSWORD", "")
+    task_id = _get_profile_env(profile_name, "CHECKIN_TASK_ID")
     date = _date_str()
 
-    if not openid or not username or not password:
-        msg = "环境变量缺失: 请设置 CHECKIN_OPENID, CHECKIN_USERNAME, CHECKIN_PASSWORD"
-        print(f"[错误] {msg}")
-        return _notify_and_return({"status": "error", "msg": msg, "date": date})
+    label = f"[{profile_name}]"
+    if not openid or not username:
+        suffix = f"_{profile_name}"
+        missing = []
+        if not openid:
+            missing.append(f"CHECKIN_OPENID{suffix}")
+        if not username:
+            missing.append(f"CHECKIN_USERNAME{suffix}")
+        return {"status": "error", "msg": f"{label} 环境变量缺失：{'、'.join(missing)}", "date": date}
 
-    # --- 登录 ---
-    print(f"[登录] openid={openid[:8]}... username={username}")
+    print(f"{label} 登录 openid={openid[:8]}... username={username}")
     api_client = ApiTokenClient(openid, username, password)
     login_ok, token = api_client.login()
     if not login_ok:
         msg = f"登录失败: {token}"
-        print(f"[错误] {msg}")
-        return _notify_and_return({"status": "error", "msg": msg, "date": date})
-    print("[登录] 成功")
+        print(f"{label} {msg}")
+        return {"status": "error", "msg": f"{label} {msg}", "date": date}
+    print(f"{label} 登录成功")
 
-    # --- 获取任务 ---
     if not task_id:
-        print("[任务] 自动获取最新任务...")
         task_id = api_client.fetch_latest_task_id()
         if not task_id:
             if _is_window_open():
-                msg = "窗口内无可用打卡任务，可能今日未发布"
+                msg = "窗口内无可用任务"
+                status = "error"
             else:
-                msg = f"当前不在打卡窗口（{_nearest_window_hint()}）"
-            print(f"[错误] {msg}")
-            return _notify_and_return({"status": "nowindow" if not _is_window_open() else "error", "msg": msg, "date": date})
-    print(f"[任务] task_id={task_id}")
+                msg = f"不在窗口（{_nearest_window_hint()}）"
+                status = "nowindow"
+            return {"status": status, "msg": f"{label} {msg}", "date": date}
+    print(f"{label} task_id={task_id}")
 
-    # --- 打卡 ---
-    print("[打卡] 提交中...")
     checkin_ok, checkin_msg, distance = api_client.do_checkin(task_id)
     if not checkin_ok:
         if "重复" in checkin_msg or "已签" in checkin_msg:
@@ -179,19 +193,74 @@ def run_checkin() -> dict:
             status = "nowindow"
         else:
             status = "error"
-        return _notify_and_return({"status": status, "msg": checkin_msg, "date": date})
+        return {"status": status, "msg": f"{label} {checkin_msg}", "date": date}
 
-    # --- 确认打卡状态 ---
     record = api_client.confirm_checkin(task_id)
     if record:
         status_name = record.get("signStatusName", "未知")
         sign_date = record.get("signDate", date)
-        detail = f"状态：{status_name}"
-        result = {"status": "ok", "msg": status_name, "date": sign_date, "detail": detail, "distance": distance}
-    else:
-        result = {"status": "ok", "msg": "打卡成功（无法确认状态）", "date": date}
+        return {"status": "ok", "msg": f"{label} {status_name}", "date": sign_date, "distance": distance}
+    return {"status": "ok", "msg": f"{label} 打卡成功（无法确认）", "date": date}
 
-    return _notify_and_return(result)
+
+def run_checkin() -> dict:
+    """SCF 打卡主入口：单用户模式（向后兼容）。"""
+    return _do_multi_or_single(profiles=None)
+
+
+def run_multi_checkin() -> dict:
+    """SCF 打卡默认入口：多用户模式（同时也是 handler 默认调用入口）。
+
+    环境变量约定:
+      CHECKIN_PROFILES=USER_1,USER_2           profile 列表（缺省="default"）
+      CHECKIN_OPENID_USER_1 / USERNAME_USER_1  每个 profile 的凭据
+      不设 CHECKIN_PROFILES 时自动回退 bare 变量 CHECKIN_OPENID/USERNAME（兼容单用户）
+    """
+    profiles_str = get_env_str("CHECKIN_PROFILES", "")
+    return _do_multi_or_single(profiles=profiles_str)
+
+
+def _do_multi_or_single(profiles: str | None) -> dict:
+    """根据 profiles 参数决定单用户或多用户流程。"""
+    if profiles:
+        profile_names = [p.strip() for p in profiles.split(",") if p.strip()]
+    else:
+        profile_names = ["default"]
+
+    if len(profile_names) == 1:
+        return _notify_and_return(_checkin_one(profile_names[0]))
+
+    all_results: list[dict] = []
+    for pname in profile_names:
+        try:
+            result = _checkin_one(pname)
+        except Exception as e:
+            print(f"[错误] {pname} 异常: {e}")
+            result = {"status": "error", "msg": f"[{pname}] 未捕获异常: {e}", "date": _date_str()}
+        all_results.append(result)
+        print(f"[结果] {pname}: {result['status']} {result.get('msg', '')}")
+
+    date = _date_str()
+    ok_count = sum(1 for r in all_results if r["status"] == "ok")
+    total = len(all_results)
+
+    if ok_count == total:
+        summary = {"status": "ok", "msg": f"全部 {total} 个账号打卡成功", "date": date}
+    elif ok_count > 0:
+        summary = {"status": "partial", "msg": f"{ok_count}/{total} 个账号打卡成功", "date": date}
+    else:
+        summary = {"status": "error", "msg": f"{total} 个账号均失败", "date": date}
+
+    detail_lines = []
+    for r in all_results:
+        icon = "✅" if r["status"] == "ok" else "⏰" if r["status"] == "duplicate" else "❌"
+        detail_lines.append(f"{icon} {r.get('msg', '')}")
+    summary["detail"] = "\n".join(detail_lines)
+
+    title, body = _build_notification(summary)
+    send_serverchan(title, body)
+    print(f"[结果] {summary['msg']}")
+    return summary
 
 
 class ApiTokenClient:
@@ -204,7 +273,7 @@ class ApiTokenClient:
     请参考 `scripts/cli_commands/auth.login_webvpn()`。
     """
 
-    def __init__(self, openid: str, username: str, password: str):
+    def __init__(self, openid: str, username: str, password: str) -> None:
         self.openid = openid
         self.username = username
         self.password = password
@@ -273,7 +342,7 @@ class ApiTokenClient:
         msg = resp.get("msg", "未知错误")
         return False, msg, ""
 
-    def _gen_gps(self, dormitory_lat: float, dormitory_lng: float, accuracy_limit: float):
+    def _gen_gps(self, dormitory_lat: float, dormitory_lng: float, accuracy_limit: float) -> tuple:
         """生成带偏移的 GPS 坐标，使 Haversine 距离 ≤ accuracy_limit。
 
         策略：从 0.002° 起始，每次折半偏移量，最多 6 次尝试。若精度上限极小（< 1e-6°），

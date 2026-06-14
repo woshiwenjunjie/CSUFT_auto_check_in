@@ -110,6 +110,21 @@ class TestBuildNotification:
         title, body = _build_notification({"status": "ok", "msg": "正常"})
         assert re.search(r"\d{4}-\d{2}-\d{2}", title) is not None
 
+    def test_partial_status(self):
+        title, body = _build_notification(
+            {"status": "partial", "msg": "1/2 个账号打卡成功", "date": "2026-06-12"}
+        )
+        assert "部分打卡成功" in title
+        assert "1/2" in body
+
+    def test_partial_with_detail(self):
+        title, body = _build_notification(
+            {"status": "partial", "msg": "1/2 个账号打卡成功", "date": "2026-06-12",
+             "detail": "✅ [USER_1] 正常\n❌ [USER_2] 登录失败"}
+        )
+        assert "USER_1" in body
+        assert "USER_2" in body
+
     def test_detail_appended_when_present(self):
         title, body = _build_notification(
             {"status": "ok", "msg": "正常", "date": "2026-06-12", "detail": "状态：正常\n地点：宿舍"}

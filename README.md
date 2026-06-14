@@ -1,8 +1,9 @@
-# CSUFT 自动晚点名打卡
+# CSUFT 自动晚点名打卡 — v0.12.0
 
-[![Tests](https://img.shields.io/badge/tests-67%2F67%20%E2%9C%85-green)](tests/)
+[![Tests](https://img.shields.io/badge/tests-87%2F87%20%E2%9C%85-green)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)]()
+[![Version](https://img.shields.io/badge/version-0.12.0-blue)]()
 
 通过逆向工程还原微信小程序 API，实现命令行一键自动打卡。无需每天打开小程序，支持 GitHub Actions 全自动托管打卡。
 
@@ -17,7 +18,7 @@
 | 🔑 一键打卡 | 模拟 GPS 偏移，自动完成晚点名签到 |
 | 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
 | 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
-| 🧪 算法可验证 | 67 个自动化测试，JS/Python 签名交叉验证 |
+| 🧪 算法可验证 | 87 个自动化测试，JS/Python 签名交叉验证 |
 | 📱 OpenID 自动捕获 | 内置 mitmproxy 插件，抓包一键获取 OpenID |
 | 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
 | ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
@@ -259,13 +260,13 @@ auto_check_in/
 │   ├── cli_config.py       # 配置管理
 │   ├── cli_ui.py           # 终端 UI 组件
 │   ├── capture_addon.py    # mitmproxy OpenID 捕获插件
+│   ├── tools/              # 工具脚本（verify_sign / cross_validate / decompile_wxapkg）
 │   ├── auto_checkin.sh     # GitHub Actions 执行脚本
 │   └── sign.js             # JS 签名参考实现
 ├── deploy/                 # 非 GitHub 部署方案
 │   └── tencent-scf/        # 腾讯云 SCF 部署（推荐）
-├── tests/                  # 测试（67 个用例）
-├── docs/                   # 文档
-│   └── guides/             # 用户指南 + 开发指南
+├── tests/                  # 测试（87 个用例）
+├── docs/                   # 文档体系：getting-started / guides / reference / development / memory
 ├── references/             # 外部参考资料 + 小程序反编译源码
 ├── reviews/                # 代码审查记录
 ├── frontend/               # (预留) 前端页面
@@ -282,22 +283,29 @@ python -m pytest tests/ -v
 
 # 签名交叉验证（需 Node.js）
 python -m pytest tests/test_cross_validate.py -v
+
+# 工具：JS/Python 交叉验证（5 组随机）
+python scripts/tools/cross_validate.py
+
+# 工具：交互式签名验证
+python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token test_token
 ```
 
 | 测试文件 | 用例数 | 覆盖内容 |
 |----------|--------|----------|
 | `test_crypto.py` | 6 | MD5、Base64 |
-| `test_sign.py` | 6 | 签名算法、Basic Auth |
-| `test_geo.py` | 8 | Haversine 距离、GPS 随机偏移 |
-| `test_config.py` | 6 | 密码混淆、配置读写 |
+| `test_sign.py` | 9 | 签名算法、Basic Auth、空路径/中文路径 |
+| `test_geo.py` | 15 | Haversine 距离、GPS 随机偏移、极端坐标、零偏移 |
+| `test_config.py` | 6 | 密码混淆、明文/混淆/空密码读取 |
 | `test_cross_validate.py` | 5 | JS vs Python 签名一致性 |
+| `test_client_integration.py` | 7 | 401 检测、签名格式、重试机制 |
 | `tests/deploy/test_notify.py` | 4 | Server酱 推送（跳过/200/500/重试） |
-| `tests/deploy/test_checkin_core.py` | 14 | 时间函数、环境变量、通知 5 状态 |
+| `tests/deploy/test_checkin_core.py` | 16 | 时间函数、环境变量、通知 6 状态（含 partial） |
 | `tests/deploy/test_checkin_api.py` | 7 | GPS 退避、签名数据、MD5 确定性 |
 | `tests/deploy/test_handler.py` | 4 | 健康检查、正常执行、异常捕获 |
 | `tests/deploy/test_deploy_utils.py` | 4 | 打包大小格式化 |
 
-**全部 67 个测试通过 ✅**
+**全部 87 个测试通过 ✅**
 
 ---
 
@@ -328,7 +336,7 @@ python -m pytest tests/test_cross_validate.py -v
 python deploy/tencent-scf/deploy.py --dry-run
 
 # 2. SCF 控制台 → 创建函数 → 本地上传 zip 包
-# 3. 配置环境变量（OPENID/USERNAME/PASSWORD/SERVERCHAN_KEY）
+# 3. 配置环境变量（CHECKIN_OPENID/CHECKIN_USERNAME/CHECKIN_PASSWORD/SERVERCHAN_KEY）
 # 4. 创建定时触发器：0 5 21 * * ? *（每天 21:05 北京时间）
 ```
 
@@ -347,9 +355,9 @@ python deploy/tencent-scf/deploy.py --dry-run
 
 1. Fork 本仓库
 2. 在仓库 Settings → Secrets and variables → Actions 中添加：
-   - `OPENID` — 你的微信小程序 OpenID
-   - `USERNAME` — 学号
-   - `PASSWORD` — 密码
+   - `CHECKIN_OPENID` — 你的微信小程序 OpenID
+   - `CHECKIN_USERNAME` — 学号
+   - `CHECKIN_PASSWORD` — 密码
    - `SERVERCHAN_KEY` — Server酱 SendKey（可选，用于微信通知）
 3. 在 Actions 页面启用工作流
 
