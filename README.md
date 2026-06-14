@@ -16,10 +16,11 @@
 | 特性 | 说明 |
 |------|------|
 | 🔑 一键打卡 | 模拟 GPS 偏移，自动完成晚点名签到 |
+| 👥 多账号批量 | `checkin --profiles` 一次命令打多个号，SCF 原生多用户循环 |
 | 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
 | 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
 | 🧪 算法可验证 | 87 个自动化测试，JS/Python 签名交叉验证 |
-| 📱 OpenID 自动捕获 | 内置 mitmproxy 插件，抓包一键获取 OpenID |
+| 📱 OpenID 自动捕获 | 内置 mitmproxy 插件 / 模拟器一键脚本 |
 | 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
 | ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
 
@@ -101,18 +102,18 @@ python scripts/cli.py <command>
 
 | 命令 | 功能 |
 |------|------|
-| `setup` | 交互式首次配置向导 |
+| `setup` | 交互式首次配置向导（支持 `--profile` 多账号） |
 | `status` | 查看登录状态、今日任务、打卡记录 |
-| `login-openid` | OpenID 登录（推荐） |
+| `login-openid` | OpenID 登录（`--bind 0` 免密码，`--profile` 多账号） |
 | `login` | 密码登录（备用，服务器已禁用） |
 | `capture-openid` | 启动 mitmproxy 自动捕获 OpenID |
 | `tasks` | 查看打卡任务列表 |
 | `login-webvpn` | WebVPN Token 验证+保存（备用方案） |
 | `detail` | 查看任务详情（宿舍坐标、精度上限） |
-| `checkin` | 一键打卡签到 |
+| `checkin` | 一键打卡签到（`--profiles` 批量多个账号） |
 | `record` | 查询当日/指定日期打卡记录 |
 | `month` | 按月查询打卡记录（含统计） |
-| `config` | 查看或清除本地配置 |
+| `config` | 管理配置（`config profile list` 列出账号，`config profile <名称>` 切换） |
 
 ### 首次使用流程
 
@@ -155,6 +156,9 @@ python scripts/cli.py status
 
 # 一键打卡（自动模拟 GPS 偏移）
 python scripts/cli.py checkin
+
+# 批量打卡多个账号
+python scripts/cli.py checkin --profiles USER_1,USER_2
 ```
 
 ### 查看打卡记录
@@ -190,15 +194,29 @@ python scripts/cli.py month --month 2026-06
 
 ```json
 {
-  "tenant_id": "000000",
-  "username": "2023xxxx",
-  "openid": "oEXAMPLE...",
-  "password": "$obf:base64encoded...",
-  "task_id": "b49ffb3790...",
-  "token": "eyJhbGciOiJI..."
+  "current_profile": "USER_1",
+  "profiles": {
+    "USER_1": {
+      "tenant_id": "000000",
+      "username": "2023XXXXXX",
+      "openid": "oXXXXXXXX...",
+      "password": "$obf:base64...",
+      "token": "eyJhbGciOi...",
+      "task_id": "b49ffb37..."
+    },
+    "USER_2": {
+      "tenant_id": "000000",
+      "username": "2023XXXXXX",
+      "openid": "oXXXXXXXX...",
+      "token": "eyJhbGciOi..."
+    }
+  }
 }
 ```
 
+- 多账号通过 `profiles` 字典管理，`config profile list` 查看全部
+- `config profile USER_2` 切换当前账号
+- `checkin --profiles USER_1,USER_2` 批量打卡多个账号
 - 密码采用 `$obf:<base64>` 混淆存储（防明文，非加密）
 - 凭据显示时自动脱敏，仅显示首尾字符
 
@@ -264,7 +282,7 @@ auto_check_in/
 │   ├── auto_checkin.sh     # GitHub Actions 执行脚本
 │   └── sign.js             # JS 签名参考实现
 ├── deploy/                 # 非 GitHub 部署方案
-│   └── tencent-scf/        # 腾讯云 SCF 部署（推荐）
+│   └── tencent-scf/        # 腾讯云 SCF 部署（推荐，含 deploy.py gen-env）
 ├── tests/                  # 测试（87 个用例）
 ├── docs/                   # 文档体系：getting-started / guides / reference / development / memory
 ├── references/             # 外部参考资料 + 小程序反编译源码
@@ -329,18 +347,37 @@ python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token 
 
 **推荐使用 SCF**：无保活困扰、北京时间原生支持、配置一次长期稳定运行。
 
+SCF 默认以多用户模式运行。不设 `CHECKIN_PROFILES` 时自动回退单用户（`CHECKIN_OPENID` 兜底），新旧配置无缝兼容。
+
 ### 快速部署
 
 ```bash
-# 1. 打包
+# 1. 生成环境变量 JSON（从 password.txt）
+python deploy/tencent-scf/deploy.py gen-env
+
+# 2. 打包代码
 python deploy/tencent-scf/deploy.py --dry-run
 
-# 2. SCF 控制台 → 创建函数 → 本地上传 zip 包
-# 3. 配置环境变量（CHECKIN_OPENID/CHECKIN_USERNAME/CHECKIN_PASSWORD/SERVERCHAN_KEY）
-# 4. 创建定时触发器：0 5 21 * * ? *（每天 21:05 北京时间）
+# 3. SCF 控制台：
+#    ① 函数代码 → 本地上传 zip → 选 scf_package.zip → 部署
+#    ② 函数配置 → 环境变量 → 导入 scf_env.json
+#    ③ 敏感字段逐行勾选「加密」
+#    ④ 触发管理 → 创建触发器 → 0 5 21 * * ? *（每天 21:05 北京时间）
 ```
 
-详细教程：[腾讯云 SCF 部署指南](docs/guides/user/腾讯云SCF部署指南.md)
+### 多用户环境变量（SCF 控制台配置）
+
+```
+CHECKIN_PROFILES=USER_1,USER_2,USER_3
+CHECKIN_OPENID_USER_1=o开头28位    → 加密
+CHECKIN_USERNAME_USER_1=2023XXXXXX → 加密
+# USER_1 免密码，不设 PASSWORD_USER_1
+CHECKIN_OPENID_USER_2=o开头28位    → 加密
+CHECKIN_USERNAME_USER_2=2023XXXXXX → 加密
+SERVERCHAN_KEY=SCT123...           → 加密（可选，微信推送用）
+```
+
+详细教程：[腾讯云 SCF 部署指南](docs/guides/user/腾讯云SCF部署指南.md) | `deploy/tencent-scf/README.md`
 
 ---
 
@@ -351,15 +388,19 @@ python deploy/tencent-scf/deploy.py --dry-run
 - **通知渠道**：Server酱微信推送、Telegram Bot、GitHub Step Summary
 - **保活机制**：每日自动 commit，防止仓库因 60 天无活动被停用
 
-### 配置步骤
+### 单用户配置（最简）
 
 1. Fork 本仓库
-2. 在仓库 Settings → Secrets and variables → Actions 中添加：
+2. 仓库 Settings → Secrets and variables → Actions 中添加：
    - `CHECKIN_OPENID` — 你的微信小程序 OpenID
    - `CHECKIN_USERNAME` — 学号
    - `CHECKIN_PASSWORD` — 密码
-   - `SERVERCHAN_KEY` — Server酱 SendKey（可选，用于微信通知）
-3. 在 Actions 页面启用工作流
+   - `SERVERCHAN_KEY` — Server酱 SendKey（可选）
+3. Actions 页面启用工作流
+
+### 多用户配置
+
+多账号需额外配 `CHECKIN_PROFILES` 和带后缀的凭据，工作流 env 段自行扩展。
 
 ---
 
