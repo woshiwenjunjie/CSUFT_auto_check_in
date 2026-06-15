@@ -17,13 +17,15 @@ Available commands:
   record        查询当日打卡状态
   month         按月查询打卡记录
   capture-openid 启动 mitmproxy 自动捕获 OpenID
-  login-webvpn  WebVPN 登录（绕过 OpenID）
+   login-webvpn  WebVPN 登录（绕过 OpenID）
 
 配置文件:  ~/.auto_check_in/config.json
 文档:      docs/guides/user/CLI教程.md
 
 Variable naming: All names must be meaningful and context-relevant.
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
@@ -36,7 +38,7 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from scripts.cli_ui import Style, c
-from scripts.cli_config import CONFIG_FILE
+from scripts.cli_config import CONFIG_FILE, list_profiles, switch_profile
 from scripts.cli_commands.setup import run as cmd_setup
 from scripts.cli_commands.status import run as cmd_status
 from scripts.cli_commands.config_cmd import run as cmd_config
@@ -50,7 +52,7 @@ from scripts.cli_commands.capture import run as cmd_capture
 # Argparse skeleton
 # ═══════════════════════════════════════════════════════════════════════
 
-def _build_parser():
+def _build_parser() -> argparse.ArgumentParser:
     """Build the argparse parser with all subcommands."""
     parser = argparse.ArgumentParser(
         prog="python scripts/cli.py",
@@ -69,65 +71,86 @@ def _build_parser():
 
     _HLP = argparse.RawDescriptionHelpFormatter
 
+    # 全局可选参数：--profile
+    _profile_parent = argparse.ArgumentParser(add_help=False)
+    profiles_avail = list_profiles()
+    profile_help = f"账号配置名称（默认 default）"
+    if profiles_avail:
+        profile_help += f"  · 已有: {', '.join(profiles_avail)}"
+    _profile_parent.add_argument(
+        "--profile", type=str, default=None, help=profile_help,
+    )
+
     # ---- setup ----
     sub.add_parser(
         "setup", help="🌟 交互式首次配置向导（强烈推荐新用户使用）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="4 步完成配置：输入 OpenID → 学号 → 密码 → 自动验证登录",
-        epilog="示例:\n  python scripts/cli.py setup",
+        epilog="示例:\n  python scripts/cli.py setup\n  python scripts/cli.py setup --profile USER_2",
     )
 
     # ---- status ----
     sub.add_parser(
         "status", help="📋 查看登录状态、任务信息、今日打卡记录",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="一次命令同时查看：配置概况 / 登录是否有效 / 当前任务 / 今日是否已打卡",
-        epilog="示例:\n  python scripts/cli.py status\n\n这是每天打开终端后最常用的命令。",
+        epilog="示例:\n  python scripts/cli.py status\n  python scripts/cli.py status --profile USER_2",
     )
 
     # ---- config ----
     p_cfg = sub.add_parser(
         "config", help="⚙️  查看或清除本地配置",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="管理 ~/.auto_check_in/config.json 中的凭据信息。\n凭据显示均已脱敏，保护隐私。",
-        epilog="示例:\n  python scripts/cli.py config              # 查看配置\n"
-               "  python scripts/cli.py config clear         # 清除 token\n"
-               "  python scripts/cli.py config clear --all   # 清除全部",
+        epilog="示例:\n  python scripts/cli.py config                 # 查看配置\n"
+               "  python scripts/cli.py config show                  # 查看当前 profile\n"
+               "  python scripts/cli.py config profile USER_2        # 切换 profile\n"
+               "  python scripts/cli.py config profile list          # 列出所有 profile\n"
+               "  python scripts/cli.py config clear                 # 清除 token\n"
+               "  python scripts/cli.py config clear --all           # 清除全部",
     )
-    p_cfg.add_argument("action", nargs="?", default="show", choices=["show", "clear"],
-                       help="show = 查看当前配置（凭据已脱敏）  |  clear = 清除指定内容")
+    p_cfg.add_argument("action", nargs="?", default="show",
+                       choices=["show", "clear", "profile"],
+                       help="show = 查看配置  |  clear = 清除指定内容  |  profile = 切换/列出账号")
     p_cfg.add_argument("--all", action="store_true", help="清除全部配置：学号 / OpenID / 密码 / Token")
     p_cfg.add_argument("--password", action="store_true", help="仅清除已保存的密码")
+    p_cfg.add_argument("name", nargs="?", default="", help="profile 名称（用于 profile 子命令）")
 
     # ---- login-openid ----
     p_openid = sub.add_parser(
         "login-openid", help="🔑 OpenID 登录（推荐方式，无需验证码）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="用微信 OpenID 换取 access_token，一次登录后 credential 自动保存。\n"
-                    "支持从配置文件自动读取已保存的凭据。",
+                    "支持 --bind 0 免密码登录（适用于已绑定账号）。",
         epilog="示例:\n  python scripts/cli.py login-openid oXXXX... 2023XXXXXX\n"
                "  python scripts/cli.py login-openid               # 从配置读取凭据\n"
-               "  python scripts/cli.py login-openid --save-password\n"
-               "  python scripts/cli.py login-openid --bind 0       # 仅登录不绑定",
+               "  python scripts/cli.py login-openid --bind 0       # 免密码登录（已绑定账号）\n"
+               "  python scripts/cli.py login-openid --profile USER_2 --bind 0",
     )
     p_openid.add_argument("--tenant", default="000000", help="学校租户 ID，默认 000000（CSUFT）")
     p_openid.add_argument("openid", nargs="?", default="", help="微信 OpenID（o 开头约 28 位），留空则从配置读取")
     p_openid.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
     p_openid.add_argument("password", nargs="?", default=None, help="密码（不建议在命令行中明文输入）")
     p_openid.add_argument("--bind", type=int, default=1, choices=[0, 1],
-                          help="0 = 仅登录不绑定  |  1 = 绑定 OpenID 与学号（默认）")
+                          help="0 = 仅登录不绑定（已绑账号免密码） | 1 = 绑定 OpenID 与学号（默认）")
     p_openid.add_argument("--save-password", action="store_true", help="将密码保存到本地配置文件")
     p_openid.add_argument("--force-input", action="store_true", help="忽略已保存的密码，强制手动输入")
 
     # ---- login-webvpn ----
     p_webvpn = sub.add_parser(
         "login-webvpn", help="🌐 WebVPN 登录（从浏览器复制 token，绕过 OpenID 抓包）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="将 WebVPN 打卡页 API 请求的 flysource-auth 值粘贴进来，\n"
                     "验证有效后自动保存到配置。从此告别 OpenID 抓包。",
         epilog="示例:\n"
                "  python scripts/cli.py login-webvpn \"bearer eyJ...\"\n"
-               "  python scripts/cli.py login-webvpn \"bearer eyJ...\" 2023XXXXXX",
+               "  python scripts/cli.py login-webvpn \"bearer eyJ...\" 2023XXXXXX\n"
+               "  python scripts/cli.py login-webvpn --profile USER_2",
     )
     p_webvpn.add_argument("token", help="从 WebVPN 页面 API 请求头 flysource-auth 复制的值")
     p_webvpn.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
@@ -135,6 +158,7 @@ def _build_parser():
     # ---- login ----
     p_login = sub.add_parser(
         "login", help="🔐 密码登录（备用方案，需验证码）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="用学号 + 密码直接登录。需要先获取验证码。",
         epilog="示例:\n  python scripts/cli.py login 2023XXXXXX",
@@ -148,9 +172,10 @@ def _build_parser():
     # ---- tasks ----
     p_tasks = sub.add_parser(
         "tasks", help="📝 查看打卡任务列表（自动记住任务 ID）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="拉取当前所有打卡任务，首次任务 ID 会自动保存到配置中。",
-        epilog="示例:\n  python scripts/cli.py tasks\n  python scripts/cli.py tasks --no-save",
+        epilog="示例:\n  python scripts/cli.py tasks\n  python scripts/cli.py tasks --no-save\n  python scripts/cli.py tasks --profile USER_2",
     )
     p_tasks.add_argument("--page", type=int, default=1, help="分页页码，默认第 1 页")
     p_tasks.add_argument("--size", type=int, default=10, help="每页数量，默认 10")
@@ -159,22 +184,26 @@ def _build_parser():
     # ---- detail ----
     p_detail = sub.add_parser(
         "detail", help="🔍 查看任务详情（宿舍坐标、精度上限）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="获取指定任务的完整信息：宿舍名称、坐标、精度要求、时间窗口。",
-        epilog="示例:\n  python scripts/cli.py detail\n  python scripts/cli.py detail <任务ID>",
+        epilog="示例:\n  python scripts/cli.py detail\n  python scripts/cli.py detail <任务ID>\n  python scripts/cli.py detail --profile USER_2",
     )
     p_detail.add_argument("task_id", nargs="?", default="", help="任务 ID，留空则自动从配置中读取")
 
     # ---- checkin ----
     p_checkin = sub.add_parser(
         "checkin", help="✅ 一键打卡签到（自动模拟 GPS 定位）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="自动获取宿舍坐标 → 生成随机 GPS 偏移 → 计算距离 → 提交打卡 → 回查确认。",
         epilog="示例:\n  python scripts/cli.py checkin\n"
                "  python scripts/cli.py checkin --offset 0.0001\n"
                "  python scripts/cli.py checkin --force\n"
                "  python scripts/cli.py checkin --late-date 2026-06-01\n"
-               "  python scripts/cli.py checkin --lat 28.13 --lng 112.99",
+               "  python scripts/cli.py checkin --lat 28.13 --lng 112.99\n"
+               "  python scripts/cli.py checkin --profile USER_2\n"
+               "  python scripts/cli.py checkin --profiles default,USER_2  # 批量两个账号",
     )
     p_checkin.add_argument("task_id", nargs="?", default="", help="任务 ID，留空则自动从配置中读取")
     p_checkin.add_argument("--lat", type=float, help="手动指定纬度")
@@ -183,13 +212,16 @@ def _build_parser():
     p_checkin.add_argument("--force", action="store_true", help="超出精度范围也强制提交")
     p_checkin.add_argument("--late-date", help="补签日期，格式 YYYY-mm-dd")
     p_checkin.add_argument("--file-id", help="附件文件 ID（一般不需要）")
+    p_checkin.add_argument("--profiles", type=str, default=None,
+                           help="批量打卡多个账号，逗号分隔（如 default,USER_2），覆盖 --profile")
 
     # ---- record ----
     p_record = sub.add_parser(
         "record", help="📊 查询当日/指定日期的打卡记录",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="查看某一天的打卡状态、坐标、时间。默认查今天。",
-        epilog="示例:\n  python scripts/cli.py record\n  python scripts/cli.py record --date 2026-06-01",
+        epilog="示例:\n  python scripts/cli.py record\n  python scripts/cli.py record --date 2026-06-01\n  python scripts/cli.py record --profile USER_2",
     )
     p_record.add_argument("task_id", nargs="?", default="", help="任务 ID，留空则自动从配置中读取")
     p_record.add_argument("--date", help="指定查询日期，格式 YYYY-mm-dd（默认今天）")
@@ -197,10 +229,12 @@ def _build_parser():
     # ---- month ----
     p_month = sub.add_parser(
         "month", help="📅 按月查询打卡记录（含统计汇总）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
         description="汇总一个月内每天的打卡状态，底部统计正常/迟到/其他天数。",
         epilog="示例:\n  python scripts/cli.py month 2026-06\n"
-               "  python scripts/cli.py month 2026-06 --task-id <任务ID>",
+               "  python scripts/cli.py month 2026-06 --task-id <任务ID>\n"
+               "  python scripts/cli.py month 2026-06 --profile USER_2",
     )
     p_month.add_argument("--task-id", default="", help="任务 ID，留空则自动从配置中读取")
     p_month.add_argument("month", help="月份，格式 YYYY-mm（如 2026-06）")
@@ -208,17 +242,20 @@ def _build_parser():
     # ---- capture-openid ----
     p_cap = sub.add_parser(
         "capture-openid", help="🌐 启动 mitmproxy 自动捕获 OpenID（无需手动翻找）",
+        parents=[_profile_parent],
         formatter_class=_HLP,
-        description="启动 mitmproxy 代理，手机设代理后打开小程序即可自动捕获 OpenID。",
+        description="启动 mitmproxy 代理，手机设代理后打开小程序即可自动捕获 OpenID。\n"
+                    "支持 --profile 指定保存到哪个账号（默认当前账号）。",
         epilog="示例:\n  python scripts/cli.py capture-openid\n"
-               "  python scripts/cli.py capture-openid --port 8888",
+               "  python scripts/cli.py capture-openid --port 8888\n"
+               "  python scripts/cli.py capture-openid --profile USER_2",
     )
     p_cap.add_argument("--port", type=int, default=8080, help="代理监听端口，默认 8080")
 
     return parser
 
 
-def _show_welcome():
+def _show_welcome() -> None:
     """Print branded welcome screen when no command is given."""
     print()
     print(c(Style.heading, "  CSUFT  ·  自动晚点名打卡"))
@@ -246,7 +283,7 @@ def _show_welcome():
     print()
 
 
-def main():
+def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
