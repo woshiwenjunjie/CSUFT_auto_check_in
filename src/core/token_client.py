@@ -93,7 +93,7 @@ class ApiTokenClient:
             cur_lat, cur_lng = gps
 
             distance_m = haversine(dorm_lat, dorm_lng, cur_lat, cur_lng)
-            sign_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            sign_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             stu_data = build_stu_sign_data(
                 task_info, cur_lat, cur_lng, f"{distance_m:.1f}",
                 sign_date, "", task_id,
