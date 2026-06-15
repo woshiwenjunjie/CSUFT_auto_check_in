@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime as dt, timezone
 from src.core.token_client import ApiTokenClient
-from src.utils.notification import send_serverchan, build_notification
+from src.utils.notification import send_serverchan, build_notification, is_window_open, window_hint
 
 
 # ── 时区工具 ─────────────────────────────────────────────
@@ -17,32 +17,6 @@ def _now_str() -> str:
 
 def _date_str() -> str:
     return _now().strftime("%Y-%m-%d")
-
-
-# ── 窗口检测 ─────────────────────────────────────────────
-_WINDOW_START = 13  # UTC
-_WINDOW_END = 14
-_WINDOW_END_MINUTE = 30
-
-
-def _is_window_open() -> bool:
-    now = dt.now(timezone.utc)
-    start = now.replace(hour=_WINDOW_START, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=_WINDOW_END, minute=_WINDOW_END_MINUTE, second=0, microsecond=0)
-    return start <= now <= end
-
-
-def _nearest_window_hint() -> str:
-    now = dt.now(timezone.utc)
-    start = now.replace(hour=_WINDOW_START, minute=0, second=0, microsecond=0)
-    if now < start:
-        diff = (start - now).total_seconds()
-        return f"距离开窗还有 {int(diff // 3600)} 小时 {int((diff % 3600) // 60)} 分钟"
-    end = now.replace(hour=_WINDOW_END, minute=_WINDOW_END_MINUTE, second=0, microsecond=0)
-    diff = (end - now).total_seconds()
-    if diff > 0:
-        return f"窗口还剩 {int(diff // 60)} 分钟"
-    return "窗口已关闭"
 
 
 # ── 单用户打卡 ───────────────────────────────────────────
@@ -86,10 +60,10 @@ def run_multi_checkin() -> dict:
     if not profile_names:
         profile_names = ["default"]
 
-    window_ok = _is_window_open()
+    window_ok = is_window_open()
     print(f"  [时间] {_now_str()} (UTC) | 窗口{'开启' if window_ok else '关闭'}")
     if not window_ok:
-        hint = _nearest_window_hint()
+        hint = window_hint()
         print(f"  [提示] {hint}")
 
     results = _do_multi_or_single(profile_names)
