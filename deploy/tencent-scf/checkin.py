@@ -98,7 +98,13 @@ def run_multi_checkin() -> dict:
     all_ok = all(r["status"] in ("ok", "duplicate") for r in results)
 
     title, content = build_notification(
-        {r["profile"]: r["status"] for r in results}
+        {
+            r["profile"]: (
+                r["status"] if not r.get("detail")
+                else f"{r['status']}: {r['detail']}"
+            )
+            for r in results
+        }
     )
     send_serverchan(title, content)
 
