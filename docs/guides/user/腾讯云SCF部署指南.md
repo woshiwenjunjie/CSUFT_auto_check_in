@@ -32,6 +32,16 @@ python deploy/tencent-scf/deploy.py --dry-run
 
 生成 `deploy/tencent-scf/scf_package.zip`（约 1.3 MB）。
 
+### 生成环境变量 JSON
+
+部署前，先用 `gen-env` 子命令从本地配置生成环境变量文件：
+
+```bash
+python deploy/tencent-scf/deploy.py gen-env
+```
+
+该命令读取 `~/.auto_check_in/config.json`（CLI 生成的用户配置），输出 `deploy/tencent-scf/scf_env.json`。后续在 SCF 控制台直接导入即可，无需手动逐条填写。
+
 ## 第三步：创建函数
 
 1. 进入 [SCF 函数服务](https://console.cloud.tencent.com/scf/list) → **新建**
@@ -62,14 +72,31 @@ python deploy/tencent-scf/deploy.py --dry-run
 进入 **函数配置** 标签页，往下翻：
 
 ### 环境变量
-新增以下 4 个变量（SCF 平台默认加密存储）：
+
+有两种方式配置：
+
+**方式一：导入生成的 JSON（推荐）**
+
+1. 在 **环境变量** 区域点击 **导入**
+2. 选择上一步生成的 `scf_env.json`
+3. 导入后，手动将 OpenID/密码/ServerKey 等敏感字段勾选「加密存储」
+
+**方式二：手动逐个添加**
 
 | 键 | 值 |
 |------|------|
-| `CHECKIN_OPENID` | 你的 OpenID（`o` 开头约 28 位） |
-| `CHECKIN_USERNAME` | 学号 |
-| `CHECKIN_PASSWORD` | 密码 |
-| `SERVERCHAN_KEY` | Server酱 SendKey（选填） |
+| `CHECKIN_PROFILES` | `USER_1,USER_2,...`（profile 列表，逗号分隔） |
+| `CHECKIN_OPENID_USER_1` | 账号 1 的 OpenID（`o` 开头约 28 位） |
+| `CHECKIN_USERNAME_USER_1` | 账号 1 的学号 |
+| `CHECKIN_PASSWORD_USER_1` | 账号 1 的密码（选填，免密码可不设） |
+| `CHECKIN_OPENID_USER_2` | 账号 2 的 OpenID |
+| `CHECKIN_USERNAME_USER_2` | 账号 2 的学号 |
+| ... | ...（按实际账号数扩展） |
+| `SERVERCHAN_KEY` | Server酱 SendKey（选填，建议加密） |
+
+> `PASSWORD` 变量仅在 `PASSWORD` 模式使用；如果使用 `login-openid` 登录（推荐），`OPENID` + `USERNAME` 足够，无需密码。
+>
+> 不设 `CHECKIN_PROFILES` 时自动回退单用户模式，读取 bare 变量 `CHECKIN_OPENID` / `CHECKIN_USERNAME` / `CHECKIN_PASSWORD`。
 
 ### 基础设置
 | 字段 | 值 |
@@ -129,6 +156,25 @@ python deploy/tencent-scf/deploy.py --dry-run
 - **更新代码**：`--dry-run` 重新打包 → 本地上传 zip 覆盖 → 测试验证
 - **修改环境变量**：函数配置页直接改，无需重新部署
 - **停用打卡**：触发管理 → 禁用触发器，下次不会自动触发
+
+## 添加新用户（无需重新部署）
+
+SCF 函数已支持根据环境变量自动适配新用户，添加步骤如下：
+
+1. **本地配置**：运行 `python scripts/cli.py login-openid --profile USER_N` 完成新账号登录
+2. **生成环境变量**：再次运行 `python deploy/tencent-scf/deploy.py gen-env`，更新后的 `scf_env.json` 会包含新账号
+3. **导入更新**：SCF 控制台 → 函数配置 → 环境变量 → 导入 `scf_env.json`（覆盖现有变量）
+4. **测试**：函数代码页 → 测试按钮验证
+
+> 不需要重新打包或重新部署函数。环境变量覆盖后，下次定时触发自动生效。
+
+如果在 SCF 控制台手动添加变量：
+
+| 新增变量 | 示例值 |
+|---------|--------|
+| `CHECKIN_OPENID_USER_N` | 新用户的 OpenID |
+| `CHECKIN_USERNAME_USER_N` | 新用户的学号 |
+| 更新 `CHECKIN_PROFILES` | 追加 `USER_N`，如 `USER_1,USER_2,USER_3,USER_4` |
 
 ## 常见问题
 

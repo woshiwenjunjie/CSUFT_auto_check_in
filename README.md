@@ -1,9 +1,9 @@
-# CSUFT 自动晚点名打卡 — v0.12.0
+# CSUFT 自动晚点名打卡 — v0.13.0
 
-[![Tests](https://img.shields.io/badge/tests-87%2F87%20%E2%9C%85-green)](tests/)
+[![Tests](https://img.shields.io/badge/tests-91%2F91%20%E2%9C%85-green)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)]()
-[![Version](https://img.shields.io/badge/version-0.12.0-blue)]()
+[![Version](https://img.shields.io/badge/version-0.13.0-blue)]()
 
 通过逆向工程还原微信小程序 API，实现命令行一键自动打卡。无需每天打开小程序，支持 GitHub Actions 全自动托管打卡。
 
@@ -19,7 +19,7 @@
 | 👥 多账号批量 | `checkin --profiles` 一次命令打多个号，SCF 原生多用户循环 |
 | 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
 | 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
-| 🧪 算法可验证 | 87 个自动化测试，JS/Python 签名交叉验证 |
+| 🧪 算法可验证 | 91 个自动化测试，JS/Python 签名交叉验证 |
 | 📱 OpenID 自动捕获 | 内置 mitmproxy 插件 / 模拟器一键脚本 |
 | 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
 | ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
@@ -105,14 +105,11 @@ python scripts/cli.py <command>
 | `setup` | 交互式首次配置向导（支持 `--profile` 多账号） |
 | `status` | 查看登录状态、今日任务、打卡记录 |
 | `login-openid` | OpenID 登录（`--bind 0` 免密码，`--profile` 多账号） |
-| `login` | 密码登录（备用，服务器已禁用） |
 | `capture-openid` | 启动 mitmproxy 自动捕获 OpenID |
 | `tasks` | 查看打卡任务列表 |
 | `login-webvpn` | WebVPN Token 验证+保存（备用方案） |
 | `detail` | 查看任务详情（宿舍坐标、精度上限） |
-| `checkin` | 一键打卡签到（`--profiles` 批量多个账号） |
-| `record` | 查询当日/指定日期打卡记录 |
-| `month` | 按月查询打卡记录（含统计） |
+| `checkin` | 一键打卡签到（`--profiles` 批量多个账号，`--record` 查记录，`--month` 月统计） |
 | `config` | 管理配置（`config profile list` 列出账号，`config profile <名称>` 切换） |
 
 ### 首次使用流程
@@ -165,13 +162,13 @@ python scripts/cli.py checkin --profiles USER_1,USER_2
 
 ```bash
 # 今日记录
-python scripts/cli.py record
+python scripts/cli.py checkin --record
 
 # 指定日期
-python scripts/cli.py record --date 2026-06-01
+python scripts/cli.py checkin --record --date 2026-06-01
 
 # 整月统计
-python scripts/cli.py month --month 2026-06
+python scripts/cli.py checkin --month 2026-06
 ```
 
 ---

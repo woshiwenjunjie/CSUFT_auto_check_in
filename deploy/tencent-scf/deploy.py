@@ -11,8 +11,7 @@
 打包结构:
     scf_package.zip/
     ├── handler.py          # SCF 入口
-    ├── checkin.py          # 打卡编排逻辑
-    ├── notify.py           # Server酱 通知
+    ├── checkin.py          # 打卡编排逻辑（共享模块）
     ├── requirements.txt    # pip 依赖
     ├── src/
     │   ├── __init__.py
@@ -80,7 +79,7 @@ def build_package() -> str:
 
     try:
         print("[1/4] 复制入口文件...")
-        for f in ["handler.py", "checkin.py", "notify.py"]:
+        for f in ["handler.py", "checkin.py"]:
             shutil.copy2(SCRIPT_DIR / f, build_dir / f)
 
         print("[2/4] 复制核心库...")
@@ -89,9 +88,9 @@ def build_package() -> str:
             (target_src_dir / subdir).mkdir(parents=True, exist_ok=True)
         for pkg_file in ["__init__.py"]:
             shutil.copy2(PROJECT_DIR / "src" / pkg_file, target_src_dir / pkg_file)
-        for pkg_file in ["__init__.py", "client.py"]:
+        for pkg_file in ["__init__.py", "client.py", "token_client.py", "sign_builder.py"]:
             shutil.copy2(PROJECT_DIR / "src/core" / pkg_file, target_src_dir / "core" / pkg_file)
-        for pkg_file in ["__init__.py", "crypto.py", "sign.py", "geo.py"]:
+        for pkg_file in ["__init__.py", "crypto.py", "sign.py", "geo.py", "notification.py"]:
             shutil.copy2(PROJECT_DIR / "src/utils" / pkg_file, target_src_dir / "utils" / pkg_file)
 
         print("[3/4] 安装 pip 依赖...")

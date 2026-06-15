@@ -4,7 +4,8 @@
   1. 监听所有 HTTP 响应
   2. 当 URL 包含 'getOpenidByJsCode' 时，提取响应 JSON 中的 data 字段（即 OpenID）
   3. 保存到 ~/.auto_check_in/config.json 的指定 profile 中
-  4. 自动关闭 mitmproxy
+  4. 自动用 OpenID + 密码获取 token（自动登录），保存到配置
+  5. 自动关闭 mitmproxy
 
 用法：
   mitmdump -s scripts/capture_addon.py --listen-port 8080
@@ -56,6 +57,40 @@ def _save_openid_to_profile(openid: str, profile_name: str | None = None) -> dic
     return cfg
 
 
+def _auto_login(profile_name: str, openid: str) -> str | None:
+    """捕获 OpenID 后自动登录获取 token"""
+    cfg_path = Path.home() / ".auto_check_in" / "config.json"
+    if not cfg_path.exists():
+        return None
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    profiles = cfg.get("profiles", {})
+    prof = profiles.get(profile_name, cfg)
+    username = prof.get("username", "")
+    password = prof.get("password", "")
+    if not username:
+        print("  [自动登录] 未找到 username，跳过自动登录")
+        return None
+    from src.core.client import ApiClient
+    try:
+        client = ApiClient()
+        resp = client.sign_in_openid("000000", openid, username, password, 0)
+        token = resp.get("access_token", "")
+        if token:
+            prof["token"] = token
+            prof["openid"] = openid
+            cfg_path.write_text(
+                json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            print(f"  ✅ 自动登录成功，token 已保存")
+            return token
+        else:
+            msg = resp.get("msg", resp.get("error_description", "未知错误"))
+            print(f"  ⚠️  自动登录失败: {msg}")
+    except Exception as e:
+        print(f"  ⚠️  自动登录异常: {e}")
+    return None
+
+
 class OpenIDCapture:
     """捕获 getOpenidByJsCode 响应的 OpenID
 
@@ -80,6 +115,7 @@ class OpenIDCapture:
 
             self.captured = True
             cfg = _save_openid_to_profile(openid, self._profile)
+            _auto_login(self._profile or cfg.get("current_profile", "default"), openid)
             prof_name = self._profile or cfg.get("current_profile", "default")
             all_profiles = cfg.get("profiles", {})
             prof_count = len(all_profiles)
