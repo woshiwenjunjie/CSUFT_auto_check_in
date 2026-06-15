@@ -37,11 +37,16 @@ def send_serverchan(title: str, content: str, key: str = "") -> bool:
     return False
 
 
+def _is_success(status: str) -> bool:
+    fail_keywords = ("error", "失败", "过期", "超出", "未登录", "无任务", "异常", "退出")
+    for kw in fail_keywords:
+        if kw in status.lower():
+            return False
+    return bool(status.strip())
+
+
 def build_notification(results: dict[str, str]) -> tuple[str, str]:
-    ok_count = sum(
-        1 for s in results.values()
-        if s.startswith("ok") or s.startswith("duplicate")
-    )
+    ok_count = sum(1 for s in results.values() if _is_success(s))
     total = len(results)
     title = f"打卡汇总 {ok_count}/{total}"
     content_lines = [f"## 自动打卡结果", f"共 {total} 个账号，成功 {ok_count} 个", ""]
@@ -49,5 +54,6 @@ def build_notification(results: dict[str, str]) -> tuple[str, str]:
         content_lines.append(f"- **{pname}**: {status}")
     content_lines.append("")
     content_lines.append(f"---")
-    content_lines.append(f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    content_lines.append(f"🕐 {ts} (北京时间)")
     return title, "\n".join(content_lines)

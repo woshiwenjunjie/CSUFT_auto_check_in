@@ -26,11 +26,11 @@ def _checkin_single(profile_name: str, args: Namespace) -> str:
     client, cfg = get_client(profile=profile_name)
     token = cfg.get("token", "")
     if not token:
-        return "未登录"
+        return f"未登录 (运行 login-openid --profile {profile_name})"
 
     tid = resolve_task_id(args, cfg)
     if not tid:
-        return "无任务ID"
+        return f"无任务ID (运行 tasks --profile {profile_name})"
 
     spinner = Spinner(f"[{profile_name}] 获取任务信息")
     spinner.start()
@@ -38,7 +38,7 @@ def _checkin_single(profile_name: str, args: Namespace) -> str:
     spinner.stop()
 
     if token_expired(task_detail):
-        return "Token过期"
+        return f"Token过期 (运行 login-openid --profile {profile_name})"
     if not task_detail.get("success"):
         return f"任务详情失败: {task_detail.get('msg', '')}"
 
@@ -68,7 +68,7 @@ def _checkin_single(profile_name: str, args: Namespace) -> str:
     loc_accuracy = f"{dist:.1f}"
 
     if dist > accuracy and not args.force:
-        return f"超出范围 {dist:.0f}m > {accuracy}m"
+        return f"超出范围 {dist:.0f}m > {accuracy}m (用 --force 强制提交)"
 
     stu_data = build_stu_sign_data(
         td, cur_lat, cur_lng, loc_accuracy, sign_date,
@@ -138,15 +138,7 @@ def checkin(args: Namespace) -> None:
         print()
 
         # Server酱 通知（自适应所有已打卡的用户，无需配置用户列表）
-        ok_count = sum(1 for s in results.values() if "正常" in s or "已提交" in s)
-        total = len(results)
-        title = f"打卡汇总 {ok_count}/{total}"
-        content = f"""## 自动打卡结果
-共 {total} 个账号，成功 {ok_count} 个
-"""
-        for pname, status in results.items():
-            content += f"- {pname}: {status}\n"
-        content += f"\n---\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        title, content = build_notification(results)
         send_serverchan(title, content)
 
 
