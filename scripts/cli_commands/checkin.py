@@ -121,20 +121,39 @@ def checkin(args: Namespace) -> None:
         print(c(Style.info, f"  共 {len(profiles)} 个账号"))
         print()
 
+    def _print_status(status: str) -> None:
+        if "正常" in status or "已提交" in status:
+            kv("状态", c(Style.success, status))
+        elif "(" in status and "运行" in status:
+            err, hint = status.split(" (", 1)
+            kv("状态", f"{c(Style.error, err)} {c(Style.muted, '(' + hint)}")
+        elif "超出范围" in status:
+            kv("状态", c(Style.error, status))
+        else:
+            kv("状态", status)
+
     results: dict[str, str] = {}
     for pname in profiles:
         print(c(Style.heading, f"  [{pname}]"))
         status = _checkin_single(pname, args)
         results[pname] = status
-        kv("状态", status)
+        _print_status(status)
         print()
 
     if len(profiles) > 1:
         divider("打卡汇总")
         print()
         for pname, status in results.items():
-            icon = c(Style.success, "✓") if "正常" in status or "已提交" in status else c(Style.error, "✗")
-            print(f"  {icon}  {pname}: {status}")
+            ok = "正常" in status or "已提交" in status
+            icon = c(Style.success, "✓") if ok else c(Style.error, "✗")
+            if ok:
+                label = c(Style.success, status)
+            elif "(" in status and "运行" in status:
+                err, hint = status.split(" (", 1)
+                label = f"{c(Style.error, err)} {c(Style.muted, '(' + hint)}"
+            else:
+                label = c(Style.error, status)
+            print(f"  {icon}  {c(Style.bold, pname)}: {label}")
         print()
 
         # Server酱 通知（自适应所有已打卡的用户，无需配置用户列表）
