@@ -1,6 +1,6 @@
 # Auto Check-In CLI 使用教程
 
-> 适用版本：v0.11.0  
+> 适用版本：v0.13.0  
 > 项目：CSUFT自动晚点名打卡工具
 > 功能：单用户 / 多用户 / 一键批量打卡
 
@@ -49,14 +49,13 @@ python scripts/cli.py checkin
 | `status` | 🆕 状态概览（登录+任务+今日记录） | 每天 | `python scripts/cli.py status` |
 | `config` | 🆕 查看/管理本地配置 | 偶尔 | `python scripts/cli.py config` |
 | `login-openid` | OpenID 登录（推荐） | 首次 / token 过期 | `python scripts/cli.py login-openid oEXAMPLE... 2023****` |
-| `login` | 密码登录（备用） | 极少 | `python scripts/cli.py login 2023****` |
 | `tasks` | 查看任务 + 自动记住ID | 每天 | `python scripts/cli.py tasks` |
 | `detail` | 任务详情（task_id 可选） | 首次 | `python scripts/cli.py detail` |
 | `checkin` | 一键打卡（task_id 可选） | 每天 | `python scripts/cli.py checkin` |
-| `record` | 查询打卡状态（task_id 可选） | 确认用 | `python scripts/cli.py record` |
-| `month <YYYY-mm>` | 月度记录 + 统计（task_id 可选） | 偶尔 | `python scripts/cli.py month 2026-06` |
+| `checkin --record` | 查询打卡记录（task_id 可选） | 确认用 | `python scripts/cli.py checkin --record` |
+| `checkin --month YYYY-MM` | 月度打卡统计 | 偶尔 | `python scripts/cli.py checkin --month 2026-06` |
 
-> `tasks` 运行后自动记住任务 ID，后续 `detail`/`checkin`/`record`/`month` 可直接省略 task_id。终端支持 ANSI 彩色输出（绿色=成功，红色=错误，黄色=警告）。
+> `tasks` 运行后自动记住任务 ID，后续 `detail`/`checkin` 可直接省略 task_id。终端支持 ANSI 彩色输出（绿色=成功，红色=错误，黄色=警告）。
 
 ---
 
@@ -227,7 +226,7 @@ python scripts/cli.py tasks [--page 1] [--size 10]
 共 1 条
 ```
 
-**提示**：`任务ID`（方括号内的长字符串）是后续 `detail`/`checkin`/`record`/`month` 命令的必填参数。建议记下或写入脚本。
+**提示**：`任务ID`（方括号内的长字符串）是后续 `detail`/`checkin` 命令的必填参数。建议记下或写入脚本。
 
 ### 5.6 `detail` — 任务详情
 
@@ -268,6 +267,8 @@ python scripts/cli.py checkin <任务ID> [选项]
 | `--force` | flag | 关闭 | 超出精度范围仍强制提交 |
 | `--late-date <YYYY-mm-dd>` | string | 今天 | 补签日期 |
 | `--file-id <文件ID>` | string | 无 | 上传照片的文件 ID |
+| `--record [TASK_ID]` | string | 无 | 查询当日打卡记录 |
+| `--month [YYYY-MM]` | string | 无 | 查询月度打卡统计 |
 
 **使用场景**：
 
@@ -300,10 +301,10 @@ python scripts/cli.py checkin b49ffb37... --lat 28.5 --lng 113.0 --force
 5. 服务端再次校验坐标合理性
 ```
 
-### 5.8 `record` — 查询今日打卡状态
+### 5.8 `checkin --record` — 查询打卡记录
 
 ```powershell
-python scripts/cli.py record <任务ID> [--date YYYY-mm-dd]
+python scripts/cli.py checkin --record [TASK_ID] [--profile PROFILE]
 ```
 
 输出示例：
@@ -324,10 +325,10 @@ python scripts/cli.py record <任务ID> [--date YYYY-mm-dd]
 | 5 | 离校中 |
 | 6 | 外宿中 |
 
-### 5.9 `month` — 月度打卡记录
+### 5.9 `checkin --month` — 月度打卡统计
 
 ```powershell
-python scripts/cli.py month <任务ID> <YYYY-mm>
+python scripts/cli.py checkin --month YYYY-MM [--profile PROFILE]
 ```
 
 输出示例：
@@ -343,15 +344,6 @@ python scripts/cli.py month <任务ID> <YYYY-mm>
 
 **注意**：API 仅返回有打卡记录的日期，无记录日期不显示。
 
-### 5.10 `login` — 密码登录（备用）
-
-```powershell
-python scripts/cli.py login [--tenant 000000] <学号> [密码]
-```
-
-小程序实际不使用此方式登录，保留作备用。需要验证码，但验证码接口可用性不稳定。
-
----
 
 ## 6. 高级用法
 
@@ -392,7 +384,7 @@ source .venv/bin/activate
 echo "=== $(date) ==="
 python scripts/cli.py tasks
 python scripts/cli.py checkin TASK_ID
-python scripts/cli.py record TASK_ID
+python scripts/cli.py checkin --record TASK_ID
 ```
 
 ### 6.4 多账号管理
