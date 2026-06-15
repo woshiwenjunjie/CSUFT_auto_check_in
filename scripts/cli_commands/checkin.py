@@ -2,72 +2,19 @@
 
 from __future__ import annotations
 
-import json
-import os
 from argparse import Namespace
 from datetime import datetime
-from src.utils.crypto import md5
-from src.utils.geo import haversine, random_offset
+from src.utils.geo import haversine, generate_gps_with_retry
+from src.utils.notification import send_serverchan, build_notification
+from src.core.sign_builder import build_stu_sign_data
 from scripts.cli_ui import (
-    Style, c, divider, kv, bullet, warn_box, _status_display,
+    Style, c, divider, kv, bullet, _status_display,
     STATUS_MAP, Spinner,
 )
 from scripts.cli_config import load_config, _mask, list_profiles
 from scripts.cli_commands._common import (
     get_client, resolve_task_id, token_expired, login_expired_hint,
 )
-
-def _send_serverchan(title: str, content: str, key: str = "") -> bool:
-    """发送 Server酱 通知（内联版，避免 deploy/ 路径导入问题）"""
-    if not key:
-        key = os.environ.get("SERVERCHAN_KEY", "")
-    if not key:
-        return False
-    try:
-        import httpx
-        resp = httpx.post(
-            f"https://sctapi.ftqq.com/{key}.send",
-            data={"title": title, "desp": content},
-            timeout=15,
-        )
-        return resp.status_code == 200
-    except Exception:
-        return False
-
-_DEFAULT_GPS_OFFSET = 0.0003
-_DEFAULT_GPS_RETRIES = 6
-_MIN_GPS_OFFSET = 1e-6
-
-# ═══════════════════════════════════════════════════════════════════════
-# stuSign 请求体构建
-# ═══════════════════════════════════════════════════════════════════════
-
-def _prepare_stu_sign_data(task_detail: dict, cur_lat: float, cur_lng: float, loc_accuracy: str, sign_date: str, file_id: str, task_id: str) -> dict:
-    """Build the stuSign request body, including the stuTaskId hash."""
-    dorm = task_detail.get("dormitoryRegisterVO", {}) or {}
-    stu_data = {
-        "taskId": task_id,
-        "scanType": task_detail.get("scanType", 1),
-        "roomId": dorm.get("roomId", ""),
-        "signLat": str(cur_lat),
-        "signLng": str(cur_lng),
-        "locationAccuracy": loc_accuracy,
-        "signType": 0,
-        "scanCode": "",
-        "fileId": file_id or "",
-    }
-    hash_input = {
-        "latitude": str(cur_lat),
-        "longitude": str(cur_lng),
-        "locationAccuracy": loc_accuracy,
-        "signDate": sign_date,
-        "taskId": task_id,
-        "fileId": file_id or "",
-    }
-    stu_data["stuTaskId"] = md5(
-        json.dumps(hash_input, ensure_ascii=False, separators=(",", ":"))
-    )
-    return stu_data
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -109,24 +56,21 @@ def _checkin_single(profile_name: str, args: Namespace) -> str:
     elif args.lat is not None or args.lng is not None:
         return "--lat 和 --lng 必须同时指定"
     else:
-        cur_offset = args.offset
-        for attempt in range(_DEFAULT_GPS_RETRIES):
-            cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, cur_offset)
-            dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
-            if dist <= accuracy:
-                break
-            if cur_offset < _MIN_GPS_OFFSET:
-                break
-            cur_offset /= 2
-        else:
-            return f"超出范围 {dist:.0f}m > {accuracy}m"
+        gps = generate_gps_with_retry(
+            dorm_lat, dorm_lng, accuracy,
+            start_offset=args.offset,
+        )
+        if gps is None:
+            return f"超出范围: 无法在 {accuracy:.0f}m 范围内生成有效坐标"
+        cur_lat, cur_lng = gps
+        dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
 
     loc_accuracy = f"{dist:.1f}"
 
     if dist > accuracy and not args.force:
         return f"超出范围 {dist:.0f}m > {accuracy}m"
 
-    stu_data = _prepare_stu_sign_data(
+    stu_data = build_stu_sign_data(
         td, cur_lat, cur_lng, loc_accuracy, sign_date,
         args.file_id or "", tid,
     )
@@ -203,7 +147,7 @@ def checkin(args: Namespace) -> None:
         for pname, status in results.items():
             content += f"- {pname}: {status}\n"
         content += f"\n---\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        _send_serverchan(title, content)
+        send_serverchan(title, content)
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -214,15 +158,16 @@ def record(args: Namespace) -> None:
     """Query today's check-in record."""
     profile = getattr(args, "profile", None)
     client, cfg = get_client(profile=profile)
-    tid = resolve_task_id(args, cfg)
+    tid = getattr(args, "record", None) or resolve_task_id(args, cfg)
     if not tid:
         print()
         print(c(Style.error, "  请提供任务 ID，或先运行 tasks"))
         return
 
+    date = getattr(args, "date", None)
     spinner = Spinner("正在查询打卡记录")
     spinner.start()
-    resp = client.get_one_record(tid, args.date)
+    resp = client.get_one_record(tid, date)
     spinner.stop()
 
     if token_expired(resp):
@@ -266,14 +211,19 @@ def month(args: Namespace) -> None:
     profile = getattr(args, "profile", None)
     client, cfg = get_client(profile=profile)
     tid = resolve_task_id(args, cfg)
+    month_str = getattr(args, "month", None)
+    if not month_str:
+        print()
+        print(c(Style.error, "  请指定月份，如 --month 2026-06"))
+        return
     if not tid:
         print()
         print(c(Style.error, "  请提供任务 ID，或先运行 tasks"))
         return
 
-    spinner = Spinner(f"正在查询 {args.month} 打卡记录")
+    spinner = Spinner(f"正在查询 {month_str} 打卡记录")
     spinner.start()
-    resp = client.get_month_records(tid, args.month)
+    resp = client.get_month_records(tid, month_str)
     spinner.stop()
 
     if token_expired(resp):
@@ -286,11 +236,11 @@ def month(args: Namespace) -> None:
         data = resp.get("data", {}) or {}
         if not data:
             print()
-            print(c(Style.muted, f"  {args.month} 暂无打卡记录"))
+            print(c(Style.muted, f"  {month_str} 暂无打卡记录"))
             return
 
         print()
-        divider(f"{args.month} 打卡记录")
+        divider(f"{month_str} 打卡记录")
         print()
 
         sorted_items = sorted(data.items())

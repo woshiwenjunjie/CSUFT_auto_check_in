@@ -10,14 +10,11 @@ Available commands:
   status        查看登录状态、任务信息、今日打卡记录
   config        查看或管理本地配置（show / clear）
   login-openid  OpenID 登录（推荐方式）
-  login         密码登录（备用方案）
   tasks         查看打卡任务列表（自动记住任务 ID）
   detail        查看任务详情（含宿舍坐标、精度上限）
-  checkin       一键打卡签到（自动模拟 GPS 偏移）
-  record        查询当日打卡状态
-  month         按月查询打卡记录
+  checkin       一键打卡签到（含 --record / --month 查询）
   capture-openid 启动 mitmproxy 自动捕获 OpenID
-   login-webvpn  WebVPN 登录（绕过 OpenID）
+  login-webvpn  WebVPN 登录（绕过 OpenID）
 
 配置文件:  ~/.auto_check_in/config.json
 文档:      docs/guides/user/CLI教程.md
@@ -42,10 +39,10 @@ from scripts.cli_config import CONFIG_FILE, list_profiles, switch_profile
 from scripts.cli_commands.setup import run as cmd_setup
 from scripts.cli_commands.status import run as cmd_status
 from scripts.cli_commands.config_cmd import run as cmd_config
-from scripts.cli_commands.auth import login_openid as cmd_login_openid, login as cmd_login, login_webvpn as cmd_login_webvpn
+from scripts.cli_commands.auth import login_openid as cmd_login_openid, login_webvpn as cmd_login_webvpn
 from scripts.cli_commands.config_sync import run as cmd_config_sync
 from scripts.cli_commands.tasks import tasks as cmd_tasks, detail as cmd_detail
-from scripts.cli_commands.checkin import checkin as cmd_checkin, record as cmd_record, month as cmd_month
+from scripts.cli_commands.checkin import checkin as checkin_checkin, record as checkin_record, month as checkin_month
 from scripts.cli_commands.capture import run as cmd_capture
 
 
@@ -160,20 +157,6 @@ def _build_parser() -> argparse.ArgumentParser:
     p_webvpn.add_argument("token", help="从 WebVPN 页面 API 请求头 flysource-auth 复制的值")
     p_webvpn.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
 
-    # ---- login ----
-    p_login = sub.add_parser(
-        "login", help="🔐 密码登录（备用方案，需验证码）",
-        parents=[_profile_parent],
-        formatter_class=_HLP,
-        description="用学号 + 密码直接登录。需要先获取验证码。",
-        epilog="示例:\n  python scripts/cli.py login 2023XXXXXX",
-    )
-    p_login.add_argument("--tenant", default="000000", help="学校租户 ID，默认 000000")
-    p_login.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
-    p_login.add_argument("password", nargs="?", default=None, help="密码")
-    p_login.add_argument("--save-password", action="store_true", help="将密码保存到本地配置文件")
-    p_login.add_argument("--force-input", action="store_true", help="忽略已保存的密码，强制手动输入")
-
     # ---- tasks ----
     p_tasks = sub.add_parser(
         "tasks", help="📝 查看打卡任务列表（自动记住任务 ID）",
@@ -219,30 +202,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_checkin.add_argument("--file-id", help="附件文件 ID（一般不需要）")
     p_checkin.add_argument("--profiles", type=str, default=None,
                            help="批量打卡多个账号，逗号分隔（如 default,USER_2），覆盖 --profile")
-
-    # ---- record ----
-    p_record = sub.add_parser(
-        "record", help="📊 查询当日/指定日期的打卡记录",
-        parents=[_profile_parent],
-        formatter_class=_HLP,
-        description="查看某一天的打卡状态、坐标、时间。默认查今天。",
-        epilog="示例:\n  python scripts/cli.py record\n  python scripts/cli.py record --date 2026-06-01\n  python scripts/cli.py record --profile USER_2",
+    p_checkin.add_argument(
+        "--record", nargs="?", const="", default=None,
+        metavar="TASK_ID",
+        help="查询当日打卡记录（可选指定 task_id）",
     )
-    p_record.add_argument("task_id", nargs="?", default="", help="任务 ID，留空则自动从配置中读取")
-    p_record.add_argument("--date", help="指定查询日期，格式 YYYY-mm-dd（默认今天）")
-
-    # ---- month ----
-    p_month = sub.add_parser(
-        "month", help="📅 按月查询打卡记录（含统计汇总）",
-        parents=[_profile_parent],
-        formatter_class=_HLP,
-        description="汇总一个月内每天的打卡状态，底部统计正常/迟到/其他天数。",
-        epilog="示例:\n  python scripts/cli.py month 2026-06\n"
-               "  python scripts/cli.py month 2026-06 --task-id <任务ID>\n"
-               "  python scripts/cli.py month 2026-06 --profile USER_2",
+    p_checkin.add_argument(
+        "--month", nargs="?", const=None, default=None,
+        metavar="YYYY-MM",
+        help="查询月度打卡统计（如 --month 2026-06）",
     )
-    p_month.add_argument("--task-id", default="", help="任务 ID，留空则自动从配置中读取")
-    p_month.add_argument("month", help="月份，格式 YYYY-mm（如 2026-06）")
 
     # ---- capture-openid ----
     p_cap = sub.add_parser(
@@ -273,8 +242,8 @@ def _show_welcome() -> None:
     print()
     print(c(Style.bold, "  📋 日常使用"))
     print(f"    {c(Style.info, 'status')}         查看登录状态 + 今日打卡概况")
-    print(f"    {c(Style.info, 'record')}         查询打卡记录")
-    print(f"    {c(Style.info, 'month <月>')}     月度汇总统计（如 month 2026-06）")
+    print(f"    {c(Style.info, 'checkin --record')}   查询打卡记录")
+    print(f"    {c(Style.info, 'checkin --month <月>')} 月度汇总统计（如 --month 2026-06）")
     print()
     print(c(Style.bold, "  🔧 其他"))
     print(f"    {c(Style.info, 'login-webvpn')}    🌐 WebVPN 登录（从浏览器复制 token，绕过 OpenID）")
@@ -296,18 +265,22 @@ def main() -> None:
         _show_welcome()
         return
 
+    def _dispatch_checkin(args):
+        if getattr(args, "month", None) is not None:
+            return checkin_month(args)
+        if getattr(args, "record", None) is not None:
+            return checkin_record(args)
+        return checkin_checkin(args)
+
     dispatch = {
         "setup": cmd_setup,
         "status": cmd_status,
         "config": cmd_config,
-        "login": cmd_login,
         "login-openid": cmd_login_openid,
         "login-webvpn": cmd_login_webvpn,
         "tasks": cmd_tasks,
         "detail": cmd_detail,
-        "checkin": cmd_checkin,
-        "record": cmd_record,
-        "month": cmd_month,
+        "checkin": _dispatch_checkin,
         "capture-openid": cmd_capture,
     }
 

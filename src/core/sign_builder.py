@@ -12,17 +12,17 @@ def compute_stu_task_id(
 ) -> str:
     raw = json.dumps(
         {
-            "latitude": latitude,
-            "longitude": longitude,
+            "latitude": str(latitude),
+            "longitude": str(longitude),
             "locationAccuracy": location_accuracy,
             "signDate": sign_date,
             "taskId": task_id,
-            "fileId": file_id,
+            "fileId": file_id or "",
         },
+        ensure_ascii=False,
         separators=(",", ":"),
-        sort_keys=True,
     )
-    return md5(raw).lower()
+    return md5(raw)
 
 
 def build_stu_sign_data(
@@ -33,7 +33,7 @@ def build_stu_sign_data(
     stu_data = {
         "taskId": task_id,
         "scanType": task_detail.get("scanType", 1),
-        "roomId": dorm.get("id", ""),
+        "roomId": dorm.get("roomId", ""),
         "signLat": str(cur_lat),
         "signLng": str(cur_lng),
         "locationAccuracy": loc_accuracy,

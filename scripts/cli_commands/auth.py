@@ -98,47 +98,6 @@ def login_openid(args: Namespace) -> None:
             print(c(Style.muted, "  提示: 密码错误，或用 --force-input 重试"))
 
 
-def login(args: Namespace) -> None:
-    """Password login (fallback — needs captcha)."""
-    profile = getattr(args, "profile", None)
-    cfg = load_config(profile=profile)
-    username = args.username or cfg.get("username", "")
-    if not username:
-        print()
-        print(c(Style.error, "  请提供学号"))
-        return
-    password = (
-        args.password
-        or (get_password(cfg) if not args.force_input else None)
-        or secure_input("密码: ")
-    )
-
-    spinner = Spinner("正在登录")
-    spinner.start()
-    client = ApiClient()
-    resp = client.sign_in(args.tenant, username, password)
-    spinner.stop()
-
-    if resp.get("access_token"):
-        cfg["token"] = resp["access_token"]
-        cfg["tenant_id"] = args.tenant
-        cfg["username"] = username
-        if args.save_password:
-            cfg["_password_raw"] = password
-        profile = getattr(args, "profile", None)
-        save_config(cfg, profile=profile)
-        print()
-        bullet("登录成功")
-        kv("学号", _mask(username, 3))
-        kv("Token", _mask(resp["access_token"], 8))
-    else:
-        print()
-        bullet(
-            "登录失败: " + resp.get("error_description", resp.get("msg", "未知错误")),
-            ok=False,
-        )
-
-
 def login_webvpn(args: Namespace) -> None:
     """WebVPN 登录 — 从浏览器拷 token 验证并保存
 
