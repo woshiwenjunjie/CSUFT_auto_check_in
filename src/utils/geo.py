@@ -37,3 +37,21 @@ def random_offset(lat: float, lng: float, max_offset: float = 0.0005,
     lat += rng.uniform(-max_offset, max_offset)
     lng += rng.uniform(-max_offset, max_offset)
     return round(lat, 6), round(lng, 6)
+
+
+def generate_gps_with_retry(
+    dorm_lat: float,
+    dorm_lng: float,
+    accuracy_limit: float,
+    start_offset: float = 0.002,
+    max_retries: int = 6,
+    min_offset: float = 1e-6,
+) -> tuple[float, float] | None:
+    current_offset_degrees = start_offset
+    for _ in range(max_retries):
+        cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, current_offset_degrees)
+        distance = haversine(dorm_lat, dorm_lng, cur_lat, cur_lng)
+        if distance <= accuracy_limit:
+            return cur_lat, cur_lng
+        current_offset_degrees = max(current_offset_degrees / 2, min_offset)
+    return None
