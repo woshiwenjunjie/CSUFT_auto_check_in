@@ -20,7 +20,6 @@ echo "Output:       $OUTPUT_ZIP"
 echo "[1/3] 复制入口文件..."
 cp "$SCRIPT_DIR/handler.py"     "$BUILD_DIR/"
 cp "$SCRIPT_DIR/checkin.py"     "$BUILD_DIR/"
-cp "$SCRIPT_DIR/notify.py"      "$BUILD_DIR/"
 cp "$SCRIPT_DIR/requirements.txt" "$BUILD_DIR/"
 
 # ── 2. 复制核心库文件（保持 src/ 包结构）───────────────
@@ -33,9 +32,12 @@ cp "$PROJECT_DIR/src/__init__.py"        "$BUILD_DIR/src/"
 cp "$PROJECT_DIR/src/core/__init__.py"   "$BUILD_DIR/src/core/"
 cp "$PROJECT_DIR/src/core/client.py"     "$BUILD_DIR/src/core/"
 cp "$PROJECT_DIR/src/utils/__init__.py"  "$BUILD_DIR/src/utils/"
-cp "$PROJECT_DIR/src/utils/crypto.py"    "$BUILD_DIR/src/utils/"
-cp "$PROJECT_DIR/src/utils/sign.py"      "$BUILD_DIR/src/utils/"
-cp "$PROJECT_DIR/src/utils/geo.py"       "$BUILD_DIR/src/utils/"
+cp "$PROJECT_DIR/src/core/token_client.py"  "$BUILD_DIR/src/core/"
+cp "$PROJECT_DIR/src/core/sign_builder.py"  "$BUILD_DIR/src/core/"
+cp "$PROJECT_DIR/src/utils/crypto.py"       "$BUILD_DIR/src/utils/"
+cp "$PROJECT_DIR/src/utils/sign.py"         "$BUILD_DIR/src/utils/"
+cp "$PROJECT_DIR/src/utils/geo.py"          "$BUILD_DIR/src/utils/"
+cp "$PROJECT_DIR/src/utils/notification.py" "$BUILD_DIR/src/utils/"
 
 # ── 3. 在 Linux 下安装 pip 依赖 ──────────────────────
 echo "[3/3] 安装 pip 依赖..."

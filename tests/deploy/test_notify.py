@@ -1,4 +1,4 @@
-"""notify.send_serverchan 测试
+"""notification.send_serverchan 测试
 
 测试 4 个路径：
 1. SERVERCHAN_KEY 未设置 → 跳过
@@ -9,7 +9,7 @@
 import os
 from unittest.mock import patch, MagicMock
 import pytest
-from notify import send_serverchan
+from src.utils.notification import send_serverchan
 
 
 class TestSendServerchan:
@@ -49,4 +49,4 @@ class TestSendServerchan:
 
         assert result is False
         assert mock_post.call_count == 2
-        assert mock_sleep.call_count == 1  # 重试 1 次（不是 2 次，最后一次不 sleep）
+        assert mock_sleep.call_count == 1

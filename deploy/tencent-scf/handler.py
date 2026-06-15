@@ -25,8 +25,8 @@
 """
 from __future__ import annotations
 
-from checkin import run_multi_checkin, _build_notification, _date_str
-from notify import send_serverchan
+from checkin import run_multi_checkin, _date_str
+from src.utils.notification import send_serverchan
 
 
 def main_handler(event: dict, context: dict) -> dict:
@@ -38,9 +38,9 @@ def main_handler(event: dict, context: dict) -> dict:
         # 不设 CHECKIN_PROFILES 则打卡 "default"，回退读取 CHECKIN_OPENID/USERNAME
         result = run_multi_checkin()
     except Exception as e:
-        print(f"[错误] 未捕获异常: {e}")
-        result = {"status": "error", "msg": f"未捕获异常: {e}", "date": _date_str()}
-        title, body = _build_notification(result)
-        send_serverchan(title, body)
-    print(f"[结果] status={result['status']} msg={result['msg']}")
+        err_msg = f"未捕获异常: {e}"
+        print(f"[错误] {err_msg}")
+        result = {"status": "error", "msg": err_msg, "date": _date_str()}
+        send_serverchan(f"❌ 打卡失败 · {_date_str()}", f"## {err_msg}")
+    print(f"[结果] status={result['status']} msg={result.get('msg', '')}")
     return result
