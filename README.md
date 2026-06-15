@@ -1,6 +1,6 @@
 # CSUFT 自动晚点名打卡 — v0.13.0
 
-[![Tests](https://img.shields.io/badge/tests-91%2F91%20%E2%9C%85-green)](tests/)
+[![Tests](https://img.shields.io/badge/tests-106%2F106%20%E2%9C%85-green)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![Version](https://img.shields.io/badge/version-0.13.0-blue)]()
@@ -19,7 +19,7 @@
 | 👥 多账号批量 | `checkin --profiles` 一次命令打多个号，SCF 原生多用户循环 |
 | 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
 | 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
-| 🧪 算法可验证 | 91 个自动化测试，JS/Python 签名交叉验证 |
+| 🧪 算法可验证 | 106 个自动化测试，JS/Python 签名交叉验证 |
 | 📱 OpenID 自动捕获 | 内置 mitmproxy 插件 / 模拟器一键脚本 |
 | 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
 | ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
@@ -247,8 +247,8 @@ python scripts/cli.py checkin --month 2026-06
 │  │  工具模块 (src/utils/)           │    │
 │  │  ├─ sign.py         签名算法     │    │
 │  │  ├─ crypto.py       MD5/Base64  │    │
-│  │  ├─ geo.py          GPS计算     │    │
-│  │  └─ notification.py 通知推送     │    │
+│  │  ├─ geo.py          GPS计算+退避  │    │
+│  │  ├─ notification.py 通知推送+窗口  │    │
 │  └─────────────────────────────────┘    │
 │  ┌─────────────────────────────────┐    │
 │  │  共享模块 (src/core/)           │    │
@@ -287,7 +287,7 @@ auto_check_in/
 │   └── sign.js             # JS 签名参考实现
 ├── deploy/                 # 非 GitHub 部署方案
 │   └── tencent-scf/        # 腾讯云 SCF 部署（推荐，含 deploy.py gen-env）
-├── tests/                  # 测试（91 个用例）
+├── tests/                  # 测试（106 个用例）
 ├── docs/                   # 文档体系：getting-started / guides / reference / development / memory
 ├── references/             # 外部参考资料 + 小程序反编译源码
 ├── reviews/                # 代码审查记录
@@ -322,12 +322,12 @@ python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token 
 | `test_cross_validate.py` | 5 | JS vs Python 签名一致性 |
 | `test_client_integration.py` | 9 | 401 检测、签名格式、重试机制 |
 | `tests/deploy/test_notify.py` | 4 | Server酱 推送（跳过/200/500/重试） |
-| `tests/deploy/test_checkin_core.py` | 14 | 时间函数、环境变量、通知 6 状态（含 partial） |
+| `tests/deploy/test_checkin_core.py` | 29 | 时间函数、窗口检测、通知（中文映射/分组/窗口行） |
 | `tests/deploy/test_checkin_api.py` | 16 | GPS 退避、签名数据、MD5 确定性、ApiTokenClient |
 | `tests/deploy/test_handler.py` | 4 | 健康检查、正常执行、异常捕获 |
 | `tests/deploy/test_deploy_utils.py` | 4 | 打包大小格式化 |
 
-**全部 91 个测试通过 ✅**
+**全部 106 个测试通过 ✅**
 
 ---
 
