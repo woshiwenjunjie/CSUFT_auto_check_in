@@ -245,10 +245,15 @@ python scripts/cli.py checkin --month 2026-06
 │  └─────────────────────────────────┘    │
 │  ┌─────────────────────────────────┐    │
 │  │  工具模块 (src/utils/)           │    │
-│  │  ├─ sign.py   签名算法           │    │
-│  │  ├─ crypto.py MD5/Base64        │    │
-│  │  └─ geo.py    GPS计算           │    │
+│  │  ├─ sign.py         签名算法     │    │
+│  │  ├─ crypto.py       MD5/Base64  │    │
+│  │  ├─ geo.py          GPS计算     │    │
+│  │  └─ notification.py 通知推送     │    │
 │  └─────────────────────────────────┘    │
+│  ┌─────────────────────────────────┐    │
+│  │  共享模块 (src/core/)           │    │
+│  │  ├─ sign_builder.py 请求体构建   │    │
+│  │  └─ token_client.py SCF适配器    │    │
 ├─────────────────────────────────────────┤
 │           阶段三（规划中）               │
 │  ┌─────────────────────────────────┐    │
@@ -264,13 +269,15 @@ python scripts/cli.py checkin --month 2026-06
 auto_check_in/
 ├── src/                    # Python 源码
 │   ├── core/client.py      # ApiClient — 核心 API 客户端
-│   ├── utils/              # 工具模块（sign / crypto / geo）
+│   ├── core/sign_builder.py# 共享请求体构建
+│   ├── core/token_client.py# SCF 环境变量适配器
+│   ├── utils/              # 工具模块（sign / crypto / geo / notification）
 │   ├── api/                # (预留) FastAPI 路由
 │   ├── models/             # (预留) 数据模型
 │   ├── services/           # (预留) 业务服务
 │   └── main.py             # FastAPI 入口
 ├── scripts/                # CLI 工具 + GitHub Actions 脚本
-│   ├── cli.py              # CLI 入口（13 个子命令）
+│   ├── cli.py              # CLI 入口（9 个子命令）
 │   ├── cli_commands/       # 子命令实现
 │   ├── cli_config.py       # 配置管理
 │   ├── cli_ui.py           # 终端 UI 组件
@@ -280,7 +287,7 @@ auto_check_in/
 │   └── sign.js             # JS 签名参考实现
 ├── deploy/                 # 非 GitHub 部署方案
 │   └── tencent-scf/        # 腾讯云 SCF 部署（推荐，含 deploy.py gen-env）
-├── tests/                  # 测试（87 个用例）
+├── tests/                  # 测试（91 个用例）
 ├── docs/                   # 文档体系：getting-started / guides / reference / development / memory
 ├── references/             # 外部参考资料 + 小程序反编译源码
 ├── reviews/                # 代码审查记录
@@ -310,17 +317,17 @@ python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token 
 |----------|--------|----------|
 | `test_crypto.py` | 6 | MD5、Base64 |
 | `test_sign.py` | 9 | 签名算法、Basic Auth、空路径/中文路径 |
-| `test_geo.py` | 15 | Haversine 距离、GPS 随机偏移、极端坐标、零偏移 |
+| `test_geo.py` | 14 | Haversine 距离、GPS 随机偏移、极端坐标、零偏移 |
 | `test_config.py` | 6 | 密码混淆、明文/混淆/空密码读取 |
 | `test_cross_validate.py` | 5 | JS vs Python 签名一致性 |
-| `test_client_integration.py` | 7 | 401 检测、签名格式、重试机制 |
+| `test_client_integration.py` | 9 | 401 检测、签名格式、重试机制 |
 | `tests/deploy/test_notify.py` | 4 | Server酱 推送（跳过/200/500/重试） |
-| `tests/deploy/test_checkin_core.py` | 16 | 时间函数、环境变量、通知 6 状态（含 partial） |
-| `tests/deploy/test_checkin_api.py` | 7 | GPS 退避、签名数据、MD5 确定性 |
+| `tests/deploy/test_checkin_core.py` | 14 | 时间函数、环境变量、通知 6 状态（含 partial） |
+| `tests/deploy/test_checkin_api.py` | 16 | GPS 退避、签名数据、MD5 确定性、ApiTokenClient |
 | `tests/deploy/test_handler.py` | 4 | 健康检查、正常执行、异常捕获 |
 | `tests/deploy/test_deploy_utils.py` | 4 | 打包大小格式化 |
 
-**全部 87 个测试通过 ✅**
+**全部 91 个测试通过 ✅**
 
 ---
 
