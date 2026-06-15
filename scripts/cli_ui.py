@@ -10,10 +10,13 @@ Important caveats:
 Variable naming: All names must be meaningful and context-relevant.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import threading
 import time
+from typing import Any
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -144,7 +147,7 @@ class Spinner:
         self._thread = None
         self._active = USE_COLOR and sys.stdout.isatty()
 
-    def _spin(self):
+    def _spin(self) -> None:
         i = 0
         while self._running:
             sys.stdout.write(
@@ -154,14 +157,14 @@ class Spinner:
             time.sleep(0.1)
             i += 1
 
-    def start(self):
+    def start(self) -> None:
         if not self._active:
             return
         self._running = True
         self._thread = threading.Thread(target=self._spin, daemon=True)
         self._thread.start()
 
-    def stop(self, clear: bool = True):
+    def stop(self, clear: bool = True) -> None:
         self._running = False
         if self._thread:
             self._thread.join(timeout=0.3)

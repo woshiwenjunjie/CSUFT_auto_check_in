@@ -14,10 +14,13 @@ Environment variables:
 
 Variable naming: All names must be meaningful and context-relevant.
 """
+from __future__ import annotations
+
 import atexit
 import json
 import os
 import time
+from typing import Any
 import certifi
 import httpx
 from src.utils.crypto import md5
@@ -70,10 +73,10 @@ class ApiClient:
         self._client = httpx.Client(timeout=30, verify=certifi.where(), trust_env=False)
         atexit.register(self.close)  # 确保进程退出时释放连接池（CLI 短生命周期场景）
 
-    def __enter__(self):
+    def __enter__(self) -> ApiClient:
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     def close(self):
@@ -97,8 +100,7 @@ class ApiClient:
             h["Authorization"] = generate_basic_auth(self._client_id, self._client_secret)
         if self.token:
             h["FlySource-Auth"] = self.token
-            h["FlySource-sign"] = generate_sign(url_path, ts, self.token,
-                                                self._client_id, self._client_secret)
+            h["FlySource-sign"] = generate_sign(url_path, ts, self.token)
         if extra:
             h.update(extra)
         return h

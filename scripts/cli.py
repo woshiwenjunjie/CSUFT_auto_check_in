@@ -43,6 +43,7 @@ from scripts.cli_commands.setup import run as cmd_setup
 from scripts.cli_commands.status import run as cmd_status
 from scripts.cli_commands.config_cmd import run as cmd_config
 from scripts.cli_commands.auth import login_openid as cmd_login_openid, login as cmd_login, login_webvpn as cmd_login_webvpn
+from scripts.cli_commands.config_sync import run as cmd_config_sync
 from scripts.cli_commands.tasks import tasks as cmd_tasks, detail as cmd_detail
 from scripts.cli_commands.checkin import checkin as cmd_checkin, record as cmd_record, month as cmd_month
 from scripts.cli_commands.capture import run as cmd_capture
@@ -105,16 +106,17 @@ def _build_parser() -> argparse.ArgumentParser:
         parents=[_profile_parent],
         formatter_class=_HLP,
         description="管理 ~/.auto_check_in/config.json 中的凭据信息。\n凭据显示均已脱敏，保护隐私。",
-        epilog="示例:\n  python scripts/cli.py config                 # 查看配置\n"
+        epilog=                "示例:\n  python scripts/cli.py config                 # 查看配置\n"
                "  python scripts/cli.py config show                  # 查看当前 profile\n"
                "  python scripts/cli.py config profile USER_2        # 切换 profile\n"
                "  python scripts/cli.py config profile list          # 列出所有 profile\n"
                "  python scripts/cli.py config clear                 # 清除 token\n"
-               "  python scripts/cli.py config clear --all           # 清除全部",
+               "  python scripts/cli.py config clear --all           # 清除全部\n"
+               "  python scripts/cli.py config sync                   # 同步到 password.txt + SCF 环境变量",
     )
     p_cfg.add_argument("action", nargs="?", default="show",
-                       choices=["show", "clear", "profile"],
-                       help="show = 查看配置  |  clear = 清除指定内容  |  profile = 切换/列出账号")
+                       choices=["show", "clear", "profile", "sync"],
+                       help="show = 查看配置  |  clear = 清除指定内容  |  profile = 切换/列出账号  |  sync = 同步到 password.txt 和 SCF 环境变量")
     p_cfg.add_argument("--all", action="store_true", help="清除全部配置：学号 / OpenID / 密码 / Token")
     p_cfg.add_argument("--password", action="store_true", help="仅清除已保存的密码")
     p_cfg.add_argument("name", nargs="?", default="", help="profile 名称（用于 profile 子命令）")
@@ -129,14 +131,17 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog="示例:\n  python scripts/cli.py login-openid oXXXX... 2023XXXXXX\n"
                "  python scripts/cli.py login-openid               # 从配置读取凭据\n"
                "  python scripts/cli.py login-openid --bind 0       # 免密码登录（已绑定账号）\n"
-               "  python scripts/cli.py login-openid --profile USER_2 --bind 0",
+               "  python scripts/cli.py login-openid --profile USER_2 --bind 0\n"
+               "  python scripts/cli.py login-openid --profile USER_N --username 2023XXXXXX --bind 0  # 新用户",
     )
     p_openid.add_argument("--tenant", default="000000", help="学校租户 ID，默认 000000（CSUFT）")
     p_openid.add_argument("openid", nargs="?", default="", help="微信 OpenID（o 开头约 28 位），留空则从配置读取")
-    p_openid.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取")
+    p_openid.add_argument("username", nargs="?", default="", help="学号，留空则从配置读取（或用 --username 标志）")
     p_openid.add_argument("password", nargs="?", default=None, help="密码（不建议在命令行中明文输入）")
     p_openid.add_argument("--bind", type=int, default=1, choices=[0, 1],
                           help="0 = 仅登录不绑定（已绑账号免密码） | 1 = 绑定 OpenID 与学号（默认）")
+    p_openid.add_argument("--username", "--user", dest="username_flag", default="",
+                          help="学号（可替代位置参数，适用于 OpenID 已在配置中的场景）")
     p_openid.add_argument("--save-password", action="store_true", help="将密码保存到本地配置文件")
     p_openid.add_argument("--force-input", action="store_true", help="忽略已保存的密码，强制手动输入")
 

@@ -1,6 +1,10 @@
 """checkin — 一键打卡签到 + 补签 + 记录查询 + 月度统计"""
 
+from __future__ import annotations
+
 import json
+import os
+from argparse import Namespace
 from datetime import datetime
 from src.utils.crypto import md5
 from src.utils.geo import haversine, random_offset
@@ -8,17 +12,37 @@ from scripts.cli_ui import (
     Style, c, divider, kv, bullet, warn_box, _status_display,
     STATUS_MAP, Spinner,
 )
-from scripts.cli_config import load_config, _mask
+from scripts.cli_config import load_config, _mask, list_profiles
 from scripts.cli_commands._common import (
     get_client, resolve_task_id, token_expired, login_expired_hint,
 )
 
+def _send_serverchan(title: str, content: str, key: str = "") -> bool:
+    """发送 Server酱 通知（内联版，避免 deploy/ 路径导入问题）"""
+    if not key:
+        key = os.environ.get("SERVERCHAN_KEY", "")
+    if not key:
+        return False
+    try:
+        import httpx
+        resp = httpx.post(
+            f"https://sctapi.ftqq.com/{key}.send",
+            data={"title": title, "desp": content},
+            timeout=15,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+_DEFAULT_GPS_OFFSET = 0.0003
+_DEFAULT_GPS_RETRIES = 6
+_MIN_GPS_OFFSET = 1e-6
 
 # ═══════════════════════════════════════════════════════════════════════
 # stuSign 请求体构建
 # ═══════════════════════════════════════════════════════════════════════
 
-def _prepare_stu_sign_data(task_detail, cur_lat, cur_lng, loc_accuracy, sign_date, file_id, task_id):
+def _prepare_stu_sign_data(task_detail: dict, cur_lat: float, cur_lng: float, loc_accuracy: str, sign_date: str, file_id: str, task_id: str) -> dict:
     """Build the stuSign request body, including the stuTaskId hash."""
     dorm = task_detail.get("dormitoryRegisterVO", {}) or {}
     stu_data = {
@@ -47,39 +71,29 @@ def _prepare_stu_sign_data(task_detail, cur_lat, cur_lng, loc_accuracy, sign_dat
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# cmd_checkin — 一键打卡
+# cmd_checkin — 一键打卡（单用户 / 多用户）
 # ═══════════════════════════════════════════════════════════════════════
 
-def checkin(args):
-    """Submit a check-in with simulated GPS offset."""
-    client, cfg = get_client()
+def _checkin_single(profile_name: str, args: Namespace) -> str:
+    """为一个 profile 执行一次打卡，返回状态描述。"""
+    client, cfg = get_client(profile=profile_name)
     token = cfg.get("token", "")
     if not token:
-        print()
-        print(c(Style.error, "  请先登录"))
-        print(c(Style.muted, "    python scripts/cli.py login-openid     (微信 OpenID)"))
-        print(c(Style.muted, "    python scripts/cli.py login-webvpn    (WebVPN token)"))
-        return
+        return "未登录"
+
     tid = resolve_task_id(args, cfg)
     if not tid:
-        print()
-        print(c(Style.error, "  请提供任务 ID，或先运行 tasks"))
-        return
+        return "无任务ID"
 
-    spinner = Spinner("正在获取任务信息")
+    spinner = Spinner(f"[{profile_name}] 获取任务信息")
     spinner.start()
     task_detail = client.get_task_detail(tid)
     spinner.stop()
 
     if token_expired(task_detail):
-        print()
-        print(c(Style.error, "  Token 已过期"))
-        login_expired_hint()
-        return
+        return "Token过期"
     if not task_detail.get("success"):
-        print()
-        print(c(Style.error, f"  获取任务详情失败: {task_detail.get('msg', '')}"))
-        return
+        return f"任务详情失败: {task_detail.get('msg', '')}"
 
     td = task_detail.get("data", {})
     dorm = td.get("dormitoryRegisterVO", {}) or {}
@@ -91,52 +105,33 @@ def checkin(args):
 
     if args.lat is not None and args.lng is not None:
         cur_lat, cur_lng = float(args.lat), float(args.lng)
-        source = "手动指定"
         dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
     elif args.lat is not None or args.lng is not None:
-        print(c(Style.error, "  --lat 和 --lng 必须同时指定"))
-        return
+        return "--lat 和 --lng 必须同时指定"
     else:
         cur_offset = args.offset
-        for attempt in range(6):
+        for attempt in range(_DEFAULT_GPS_RETRIES):
             cur_lat, cur_lng = random_offset(dorm_lat, dorm_lng, cur_offset)
             dist = haversine(cur_lat, cur_lng, dorm_lat, dorm_lng)
             if dist <= accuracy:
-                source = f"模拟偏移 ±{cur_offset}°" + (f" (第{attempt + 1}次尝试)" if attempt > 0 else "")
                 break
-            if cur_offset < 1e-6:
+            if cur_offset < _MIN_GPS_OFFSET:
                 break
             cur_offset /= 2
         else:
-            warn_box(f"重试 5 次后仍超出打卡范围  {dist:.0f}m > {accuracy}m")
-            print(c(Style.muted, "  请指定 --lat --lng 手动设置坐标，或使用 --force 强制提交"))
-            return
+            return f"超出范围 {dist:.0f}m > {accuracy}m"
 
     loc_accuracy = f"{dist:.1f}"
 
-    print()
-    divider("打卡签到")
-    print()
-    kv("任务", td.get("taskName", ""))
-    kv("日期", sign_date + (" (补签)" if is_late else ""))
-    kv("坐标", f"({cur_lat}, {cur_lng})  —  {source}")
-    kv("与宿舍距离", f"{loc_accuracy}m")
-    kv("精度上限", f"{accuracy}m")
-    print()
-
-    if dist > accuracy:
-        warn_box(f"超出打卡范围  {dist:.0f}m > {accuracy}m")
-        if not args.force:
-            print(c(Style.muted, "  使用 --force 强制提交，或 --offset 减小偏移量"))
-            return
-        print(c(Style.warning, "  --force 模式下继续提交..."))
+    if dist > accuracy and not args.force:
+        return f"超出范围 {dist:.0f}m > {accuracy}m"
 
     stu_data = _prepare_stu_sign_data(
         td, cur_lat, cur_lng, loc_accuracy, sign_date,
         args.file_id or "", tid,
     )
 
-    spinner = Spinner("正在提交打卡" if not is_late else "正在提交补签")
+    spinner = Spinner(f"[{profile_name}] 提交打卡")
     spinner.start()
     if is_late:
         stu_data["signDate"] = sign_date
@@ -146,53 +141,79 @@ def checkin(args):
     spinner.stop()
 
     if resp.get("success"):
-        print()
-        print(c(Style.success, "  打卡成功！"))
+        result = "已提交"
     else:
         msg = resp.get("msg", "未知错误")
-        if "重复" in str(msg) or "已签" in str(msg):
-            print()
-            print(c(Style.warning, f"  {msg}"))
-        else:
-            print()
-            print(c(Style.error, f"  打卡失败: {msg}"))
+        result = msg
 
-    # ---- re-query to confirm ----
-    print()
-    print(c(Style.muted, "  正在确认打卡状态..."))
+    # 确认
     record_resp = client.get_one_record(tid, sign_date)
-    if token_expired(record_resp):
-        print(c(Style.warning, "  Token 已过期，无法确认"))
-        login_expired_hint()
-        return
     if record_resp.get("success"):
         d = record_resp.get("data")
         if d and d.get("signStatus") is not None:
-            sc = int(d.get("signStatus", 0))
             sn = d.get("signStatusName", "")
-            kv("日期", str(d.get("signDate", "")))
-            kv("状态", _status_display(sc, sn))
-            if d.get("signLat"):
-                kv("坐标", f"({d.get('signLat', '')}, {d.get('signLng', '')})")
-            if d.get("signTime"):
-                kv("打卡时间", str(d["signTime"]))
-            print(f"CHECKIN_RESULT: status={sn} date={d.get('signDate', '')}")
-            print()
-        else:
-            print(c(Style.warning, "  服务器未返回打卡记录，请稍后确认"))
-            print("CHECKIN_RESULT: status=未知 date=未知")
+            return f"{sn}"
+    return result
+
+
+def checkin(args: Namespace) -> None:
+    """一键打卡签到，支持单用户或多用户。
+
+    多用户: 用 --profiles 指定多个，逗号分隔（默认全部账号）
+    单用户: 用 --profile 指定
+    """
+    explicit = getattr(args, "profiles", None) or getattr(args, "profile", None)
+    if explicit:
+        profiles_str = explicit
     else:
-        print(c(Style.muted, "  (无法确认打卡状态，请稍后运行 record 命令查看)"))
-        print("CHECKIN_RESULT: status=未知 date=未知")
+        all_p = list_profiles()
+        profiles_str = ",".join(all_p) if all_p else "default"
+    profiles = [p.strip() for p in profiles_str.split(",")]
+
+    print()
+    if len(profiles) > 1:
+        divider("批量打卡")
+        print()
+        print(c(Style.info, f"  共 {len(profiles)} 个账号"))
+        print()
+
+    results: dict[str, str] = {}
+    for pname in profiles:
+        print(c(Style.heading, f"  [{pname}]"))
+        status = _checkin_single(pname, args)
+        results[pname] = status
+        kv("状态", status)
+        print()
+
+    if len(profiles) > 1:
+        divider("打卡汇总")
+        print()
+        for pname, status in results.items():
+            icon = c(Style.success, "✓") if "正常" in status or "已提交" in status else c(Style.error, "✗")
+            print(f"  {icon}  {pname}: {status}")
+        print()
+
+        # Server酱 通知（自适应所有已打卡的用户，无需配置用户列表）
+        ok_count = sum(1 for s in results.values() if "正常" in s or "已提交" in s)
+        total = len(results)
+        title = f"打卡汇总 {ok_count}/{total}"
+        content = f"""## 自动打卡结果
+共 {total} 个账号，成功 {ok_count} 个
+"""
+        for pname, status in results.items():
+            content += f"- {pname}: {status}\n"
+        content += f"\n---\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        _send_serverchan(title, content)
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # cmd_record — 查询打卡记录
 # ═══════════════════════════════════════════════════════════════════════
 
-def record(args):
+def record(args: Namespace) -> None:
     """Query today's check-in record."""
-    client, cfg = get_client()
+    profile = getattr(args, "profile", None)
+    client, cfg = get_client(profile=profile)
     tid = resolve_task_id(args, cfg)
     if not tid:
         print()
@@ -240,9 +261,10 @@ def record(args):
 # cmd_month — 月度打卡记录汇总
 # ═══════════════════════════════════════════════════════════════════════
 
-def month(args):
+def month(args: Namespace) -> None:
     """Query monthly check-in records with summary stats."""
-    client, cfg = get_client()
+    profile = getattr(args, "profile", None)
+    client, cfg = get_client(profile=profile)
     tid = resolve_task_id(args, cfg)
     if not tid:
         print()

@@ -16,6 +16,8 @@ Server酱 API:
 环境变量:
     SERVERCHAN_KEY    Server酱 SendKey（可选，不设则跳过）
 """
+from __future__ import annotations
+
 import os
 import time as time_module
 import httpx

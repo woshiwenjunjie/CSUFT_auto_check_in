@@ -1,5 +1,8 @@
 """status — 查看登录状态、任务信息、今日打卡记录"""
 
+from __future__ import annotations
+
+from argparse import Namespace
 from datetime import datetime
 from src.core.client import ApiClient
 from scripts.cli_ui import Style, c, divider, kv, bullet, _status_display, Spinner
@@ -7,9 +10,10 @@ from scripts.cli_config import CONFIG_FILE, load_config, get_password, _mask
 from scripts.cli_commands._common import token_expired, login_expired_hint
 
 
-def run(args):
+def run(args: Namespace) -> None:
     """Show login status, current task, and today's check-in record."""
-    cfg = load_config()
+    profile = getattr(args, "profile", None)
+    cfg = load_config(profile=profile)
 
     print()
     divider("系统状态")
@@ -40,7 +44,7 @@ def run(args):
 
     if token_expired(resp):
         bullet("登录状态: Token 已过期", ok=False)
-        login_expired_hint()
+        login_expired_hint(profile=getattr(args, "profile", None))
         print()
         return
 

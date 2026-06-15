@@ -1,7 +1,8 @@
 # Auto Check-In CLI 使用教程
 
-> 适用版本：v0.8.1  
+> 适用版本：v0.11.0  
 > 项目：CSUFT自动晚点名打卡工具
+> 功能：单用户 / 多用户 / 一键批量打卡
 
 ---
 
@@ -63,13 +64,20 @@ python scripts/cli.py checkin
 
 ### 3.1 获取 OpenID
 
-OpenID 是微信用户在小程序中的唯一标识，需要通过抓包获取。详见 `docs/guides/user/完整操作指南.md` 第 3 节。
+OpenID 是微信用户在小程序中的唯一标识，需要通过抓包获取。
 
-简化步骤：
-1. MuMu 模拟器 + Fiddler 抓包
-2. 模拟器打开打卡小程序
-3. 在 Fiddler 中找到 `getOpenidByJsCode` 请求
-4. 响应体 `data` 字段即为 OpenID（`o` 开头，约 28 位）
+**推荐方案 — 模拟器自动捕获（一键完成）：**
+
+```powershell
+python scripts/tools/capture_openid_emulator.py --port 8899
+```
+
+脚本自动完成 ADB 代理配置 + 系统证书安装 + mitmproxy 启动 + OpenID 提取，详见 [模拟器自动抓取OpenID](模拟器自动抓取OpenID.md)。
+
+**传统方案：**
+
+- [Fiddler 抓包](fiddler-抓包获取OpenID.md) — PC + 手机需同 WiFi
+- [Reqable 手机抓包](Reqable-抓包获取OpenID.md) — VPN 模式，无需电脑，手机开热点也可用
 
 ### 3.2 使用交互式向导（推荐）
 
@@ -386,6 +394,107 @@ python scripts/cli.py tasks
 python scripts/cli.py checkin TASK_ID
 python scripts/cli.py record TASK_ID
 ```
+
+### 6.4 多账号管理
+
+#### 查看已有账号
+
+```powershell
+python scripts/cli.py config profile list
+# 输出:
+#   USER_1 ◀ 当前
+#   USER_2
+#   USER_3
+```
+
+#### 切换账号
+
+```powershell
+python scripts/cli.py config profile USER_2
+python scripts/cli.py login-openid --bind 0 --profile USER_2
+```
+
+#### 为账号创建新条目
+
+捕获新 OpenID 后，手动创建 profile：
+
+```powershell
+# 切换到新 profile
+python scripts/cli.py config profile USER_3
+# 登录（免密码）
+python scripts/cli.py login-openid --bind 0 --profile USER_3
+# 获取任务
+python scripts/cli.py tasks --profile USER_3
+```
+
+#### 单账号打卡
+
+```powershell
+python scripts/cli.py checkin --profile USER_2
+```
+
+#### 多账号批量打卡
+
+```powershell
+# 指定多个账号
+python scripts/cli.py checkin --profiles USER_1,USER_2,USER_3
+
+# 默认打卡全部已配置账号
+python scripts/cli.py checkin
+```
+
+输出示例：
+
+```
+───────────────────────── 批量打卡 ─────────────────────────
+  共 3 个账号
+
+  [USER_2]
+  (使用已保存的任务 ID: b49ffb3790cfa0fb...)
+  状态: 已提交
+
+  [USER_3]
+  (使用已保存的任务 ID: b49ffb3790cfa0fb...)
+  状态: 正常
+
+  [USER_1]
+  (使用已保存的任务 ID: b49ffb3790cfa0fb...)
+  状态: 正常
+
+───────────────────────── 打卡汇总 ─────────────────────────
+
+  ✓  USER_2: 已提交
+  ✓  USER_3: 正常
+  ✓  USER_1: 正常
+```
+
+#### 多账号配置文件结构
+
+```json
+{
+  "current_profile": "USER_1",
+  "profiles": {
+    "USER_1": {
+      "openid": "oXXXXXXXX...",
+      "username": "2023XXXXXX",
+      "token": "eyJhbGciOi...",
+      "task_id": "b49ffb37..."
+    },
+    "USER_2": {
+      "openid": "oXXXXXXXX...",
+      "username": "2023XXXXXX",
+      "token": "eyJhbGciOi..."
+    },
+    "USER_3": {
+      "openid": "oXXXXXXXX...",
+      "username": "2023XXXXXX",
+      "token": "eyJhbGciOi..."
+    }
+  }
+}
+```
+
+旧版扁平配置自动迁移到 profiles 格式。各 profile 独立维护自己的 token 和 task_id。
 
 ### 6.4 环境变量配置
 

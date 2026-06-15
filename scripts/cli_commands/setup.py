@@ -1,17 +1,22 @@
 """setup — 交互式首次配置向导"""
 
+from __future__ import annotations
+
+from argparse import Namespace
 from src.core.client import ApiClient
-from scripts.cli_ui import Style, c, divider, bullet
+from scripts.cli_ui import Style, c, divider, bullet, Spinner
 from scripts.cli_config import CONFIG_FILE, save_config, secure_input
-from scripts.cli_ui import Spinner
 
 
-def run(args):
+def run(args: Namespace) -> None:
     """Interactive first-time configuration wizard."""
+    profile = getattr(args, "profile", None) or "default"
     print()
     divider("首次配置向导")
     print()
     print(f"  {c(Style.bold, '欢迎！')} 这个向导会引导你完成首次设置，约 2 分钟。")
+    if profile != "default":
+        print(f"  {c(Style.info, f'账号: {profile}')}")
     print()
 
     # Step 1 — OpenID
@@ -69,7 +74,7 @@ def run(args):
         cfg["token"] = resp["access_token"]
         if save_pwd in ("", "y", "yes"):
             cfg["_password_raw"] = password
-        save_config(cfg)
+        save_config(cfg, profile=profile)
         bullet("登录验证成功")
         bullet(f"配置已保存到 {CONFIG_FILE}")
         print()

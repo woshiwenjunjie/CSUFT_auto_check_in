@@ -5,7 +5,7 @@
   1. python deploy/tencent-scf/deploy.py                       打包 + 部署 + 创建触发器
   2. python deploy/tencent-scf/deploy.py --dry-run             仅打包，不上传
   3. python deploy/tencent-scf/deploy.py --invoke              部署后立即触发测试
-  4. python deploy/tencent-scf/deploy.py gen-env               从 password.txt 生成环境变量 JSON
+  4. python deploy/tencent-scf/deploy.py gen-env               从 config.json 生成环境变量 JSON
   5. python deploy/tencent-scf/deploy.py --env-json scf_env.json  部署时附带环境变量
 
 打包结构:
@@ -57,6 +57,9 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = SCRIPT_DIR.parent.parent
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+from scripts.cli_config import CONFIG_FILE
 FUNCTION_NAME = "CSUFT_AutoCheckIn"
 REGION = "ap-guangzhou"
 TIMER_CRON = "0 5 21 * * ? *"
@@ -211,35 +214,61 @@ def invoke_test() -> None:
 
 
 def gen_env_json() -> None:
-    """从 password.txt 生成 SCF 控制台可导入的 JSON 环境变量文件。
+    """从 config.json 生成 SCF 控制台可导入的 JSON 环境变量文件。
 
-    读取项目根目录 password.txt 中 KEY=VALUE 格式的行（跳过注释和空行），
+    读取 ~/.auto_check_in/config.json 中所有 profiles 的 OpenID 和学号，
     输出 `scf_env.json`，可直接在 SCF 控制台 → 函数配置 → 环境变量 → 导入。
-    """
-    password_path = PROJECT_DIR / "password.txt"
-    if not password_path.exists():
-        print("[错误] password.txt 不存在，请在项目根目录创建")
-        print("  格式: KEY=VALUE（每行一个，# 开头的行是注释）")
-        sys.exit(1)
 
-    # 排除项：这些是部署凭证，不是 SCF 环境变量
-    exclude_keys = {"SecretId", "SecretKey", "secret_id", "secret_key"}
+    也支持从 password.txt 回退（兼容旧版）。
+    """
+    # 尝试从 config.json 读取
+    profiles = {}
+    if CONFIG_FILE.exists():
+        try:
+            raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            profiles = raw.get("profiles", {})
+        except Exception:
+            pass
 
     env_vars = {}
-    for line in password_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        key = key.strip()
-        val = val.strip()
-        if key and val and key not in exclude_keys:
-            env_vars[key] = val
+
+    # 从 profiles 构建环境变量
+    if profiles:
+        profile_names = ",".join(
+            p for p in sorted(profiles.keys())
+            if profiles[p].get("openid") or profiles[p].get("username")
+        )
+        if profile_names:
+            env_vars["CHECKIN_PROFILES"] = profile_names
+
+        for name in sorted(profiles.keys()):
+            data = profiles[name]
+            if data.get("openid"):
+                env_vars[f"CHECKIN_OPENID_{name}"] = data["openid"]
+            if data.get("username"):
+                env_vars[f"CHECKIN_USERNAME_{name}"] = data["username"]
+
+    # 回退：从 password.txt 读取（兼容旧版 + 补充非 profile 变量）
+    password_path = PROJECT_DIR / "password.txt"
+    if password_path.exists():
+        exclude_keys = {"SecretId", "SecretKey", "secret_id", "secret_key"}
+        for line in password_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip()
+            if key and val and key not in exclude_keys:
+                # 不覆盖 config.json 已有的 profile 变量
+                if key not in env_vars and not key.startswith("CHECKIN_OPENID_") and not key.startswith("CHECKIN_USERNAME_"):
+                    env_vars[key] = val
 
     if not env_vars:
-        print("[错误] password.txt 中未找到有效 KEY=VALUE 条目")
+        print("[错误] config.json 和 password.txt 均无有效数据")
+        print("  请先运行 python scripts/cli.py login-openid 完成登录")
         sys.exit(1)
 
     output_path = SCRIPT_DIR / "scf_env.json"
@@ -265,9 +294,9 @@ def main() -> None:
     parser.add_argument("--env-json", type=str, default="",
                         help="从 JSON 文件读取环境变量（SCF 控制台导出的格式）")
 
-    # gen-env 子命令：从 password.txt 生成环境变量 JSON
+    # gen-env 子命令：从 config.json 生成环境变量 JSON
     sub = parser.add_subparsers(dest="command")
-    p_gen = sub.add_parser("gen-env", help="从 password.txt 生成 SCF 环境变量 JSON")
+    p_gen = sub.add_parser("gen-env", help="从 config.json 生成 SCF 环境变量 JSON")
 
     args = parser.parse_args()
 

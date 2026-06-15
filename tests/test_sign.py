@@ -46,6 +46,24 @@ def test_sign_empty_token():
     assert "1." in result
 
 
+def test_sign_empty_path():
+    """空路径 '' 也能生成签名"""
+    result = generate_sign("", 1700000000000, "test")
+    assert "1." in result
+
+
+def test_sign_chinese_path():
+    """中文路径签名可生成"""
+    result = generate_sign("/api/测试", 1700000000000, "token_中文")
+    assert "1." in result
+
+
+def test_sign_path_with_space():
+    """路径含空格签名可生成"""
+    result = generate_sign("/api/test path", 1700000000000, "token")
+    assert "1." in result
+
+
 def test_basic_auth_format():
     """Basic 认证头格式: "Basic " + Base64(clientId:clientSecret)"""
     client_id, client_secret = get_credentials("wxapp")

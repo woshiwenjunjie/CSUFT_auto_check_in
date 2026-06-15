@@ -11,10 +11,13 @@ Important caveats:
 Variable naming: All names must be meaningful and context-relevant.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -45,37 +48,135 @@ def _unscramble(encoded: str) -> str:
 # Config load / save
 # ═══════════════════════════════════════════════════════════════════════
 
-def load_config() -> dict:
-    """读取配置文件，自动检测并还原密码"""
-    if CONFIG_FILE.exists():
-        cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        pw = cfg.get("password", "")
-        if isinstance(pw, str) and pw.startswith("$obf:"):
-            try:
-                cfg["_password_raw"] = _unscramble(pw[5:])
-            except Exception:
-                cfg["_password_raw"] = ""  # 解密失败，静默丢弃
-        elif pw:
-            # 明文密码 → 标记为需要迁移
-            cfg["_password_raw"] = pw
-            cfg["_needs_migration"] = True
+def _migrate_flat_to_profiles(cfg: dict) -> dict:
+    """将旧版扁平配置迁移为 profile 格式"""
+    has_legacy_keys = any(k in cfg for k in ("openid", "username", "token", "password"))
+    if not has_legacy_keys or "profiles" in cfg:
         return cfg
-    return {}
+    profile = {
+        "openid": cfg.get("openid", ""),
+        "username": cfg.get("username", ""),
+        "token": cfg.get("token", ""),
+        "tenant_id": cfg.get("tenant_id", "000000"),
+        "task_id": cfg.get("task_id", ""),
+        "client_mode": cfg.get("client_mode", "wxapp"),
+    }
+    pw = cfg.get("password", "") or cfg.get("_password_raw", "")
+    if pw:
+        profile["password"] = pw
+    if cfg.get("_password_raw"):
+        profile["_password_raw"] = cfg["_password_raw"]
+    # 清理迁移后的扁平键（避免新旧数据重复）
+    for k in ("openid", "username", "token", "password", "tenant_id", "task_id", "client_mode"):
+        cfg.pop(k, None)
+    cfg["profiles"] = {"default": profile}
+    cfg["current_profile"] = "default"
+    return cfg
 
 
-def save_config(cfg: dict):
-    """保存配置，自动混淆密码字段"""
+def load_config(profile: str | None = None) -> dict:
+    """读取配置文件，支持 profile。
+
+    返回当前 profile 的子配置（含 _profiles、_current_profile 元信息）。
+    """
+    raw = {}
+    if CONFIG_FILE.exists():
+        raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    raw = _migrate_flat_to_profiles(raw)
+
+    profiles = raw.get("profiles", {})
+    cur = profile or raw.get("current_profile", "default")
+
+    if cur not in profiles:
+        profiles[cur] = {}
+        raw["profiles"] = profiles
+        raw["current_profile"] = cur
+
+    cfg = dict(profiles[cur])
+    cfg["_profiles"] = profiles
+    cfg["_current_profile"] = cur
+
+    # 密码恢复
+    pw = cfg.get("password", "")
+    if isinstance(pw, str) and pw.startswith("$obf:"):
+        try:
+            cfg["_password_raw"] = _unscramble(pw[5:])
+        except Exception:
+            cfg["_password_raw"] = ""
+    elif pw:
+        cfg["_password_raw"] = pw
+        cfg["_needs_migration"] = True
+
+    # 校验 client_mode
+    cm = cfg.get("client_mode", "")
+    if cm and cm not in ("wxapp", "web"):
+        cfg["client_mode"] = "wxapp"
+
+    return cfg
+
+
+def save_config(cfg: dict[str, Any], profile: str | None = None) -> None:
+    """保存配置，支持 profile。自动混淆密码字段。
+
+    如果 cfg 包含 _profiles/_current_profile 元信息，则更新对应 profile。
+    否则更新当前 profile 或指定 profile。
+    """
+    profiles = cfg.pop("_profiles", None)
+    cur = cfg.pop("_current_profile", None)
+    target = profile or cur or "default"
+
     raw_pw = cfg.pop("_password_raw", None) or cfg.get("password", "")
-    cfg.pop("_needs_migration", None)  # 清理内部标记
+    cfg.pop("_needs_migration", None)
+
     if raw_pw and not str(raw_pw).startswith("$obf:"):
         cfg["password"] = "$obf:" + _scramble(str(raw_pw))
+
+    # 读取完整文件
+    full = {}
+    if CONFIG_FILE.exists():
+        full = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    full = _migrate_flat_to_profiles(full)
+
+    if profiles is None:
+        profiles = full.get("profiles", {})
+    if cur is None:
+        cur = full.get("current_profile", "default")
+
+    profiles[target] = cfg
+    full["profiles"] = profiles
+    full["current_profile"] = cur
+
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(
-        json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(full, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
-def get_password(cfg: dict) -> str:
+def list_profiles() -> list[str]:
+    """列出所有可用的 profile 名称"""
+    raw = {}
+    if CONFIG_FILE.exists():
+        raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    raw = _migrate_flat_to_profiles(raw)
+    return list(raw.get("profiles", {}).keys())
+
+
+def switch_profile(name: str) -> bool:
+    """切换到指定 profile"""
+    raw = {}
+    if CONFIG_FILE.exists():
+        raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    raw = _migrate_flat_to_profiles(raw)
+    if name not in raw.get("profiles", {}):
+        return False
+    raw["current_profile"] = name
+    CONFIG_FILE.write_text(
+        json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return True
+
+
+def get_password(cfg: dict[str, Any]) -> str:
     """从配置中提取明文密码（兼容新旧格式）"""
     return cfg.get("_password_raw", "") or cfg.get("password", "")
 

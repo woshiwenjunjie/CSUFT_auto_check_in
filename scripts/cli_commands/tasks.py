@@ -1,5 +1,8 @@
 """tasks — 查看打卡任务列表 + 任务详情"""
 
+from __future__ import annotations
+
+from argparse import Namespace
 from src.core.client import ApiClient
 from scripts.cli_ui import Style, c, divider, kv, bullet, Spinner
 from scripts.cli_config import load_config, save_config, _mask
@@ -10,9 +13,10 @@ from scripts.cli_commands._common import get_client, resolve_task_id, token_expi
 # cmd_tasks — 任务列表
 # ═══════════════════════════════════════════════════════════════════════
 
-def tasks(args):
+def tasks(args: Namespace) -> None:
     """List check-in tasks, auto-save the first task ID."""
-    client, cfg = get_client()
+    profile = getattr(args, "profile", None)
+    client, cfg = get_client(profile=profile)
 
     spinner = Spinner("正在获取任务列表")
     spinner.start()
@@ -61,9 +65,10 @@ def tasks(args):
 # cmd_detail — 任务详情
 # ═══════════════════════════════════════════════════════════════════════
 
-def detail(args):
+def detail(args: Namespace) -> None:
     """Show task detail including dorm coordinates and accuracy limit."""
-    client, cfg = get_client()
+    profile = getattr(args, "profile", None)
+    client, cfg = get_client(profile=profile)
     tid = resolve_task_id(args, cfg)
     if not tid:
         print()
