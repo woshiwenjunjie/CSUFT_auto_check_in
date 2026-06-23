@@ -7,24 +7,79 @@ on:
 
 env:
   PYTHON_VERSION: "3.14"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"   # 提前适配 Node.js 24，消除弃用警告
-  # 不再设置 TZ 环境变量 — 可能导致 GitHub Actions cron 调度器误用北京时区
-  # 所有时间显示由 Python timezone(timedelta(hours=8)) 显式处理
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # 不再设置 TZ 环境变量，所有时间由 Python timezone(timedelta(hours=8)) 显式处理
 
 permissions:
-  contents: write          # 允许保活步骤 git push
+  contents: write          # 允许 keepalive step git push
 
 jobs:
-  checkin:
+  # ── 多用户模式（SCF 原生循环）──
+  multi-user:
+    if: ${{ vars.CHECKIN_PROFILES != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    steps:
-      - name: 拉取代码
-        uses: actions/checkout@v4
+    env:
+      CHECKIN_PROFILES: ${{ vars.CHECKIN_PROFILES }}
+      SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
 
-      - name: 安装 Python
-        uses: actions/setup-python@v5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 注入多用户凭据
+        run: |
+          profiles="${{ vars.CHECKIN_PROFILES }}"
+          IFS=',' read -ra ADDR <<< "$profiles"
+          for p in "${ADDR[@]}"; do
+            p=$(echo "$p" | xargs)
+            echo "CHECKIN_OPENID_$p=${{ secrets[format('CHECKIN_OPENID_{0}', p)] }}" >> $GITHUB_ENV
+            echo "CHECKIN_USERNAME_$p=${{ secrets[format('CHECKIN_USERNAME_{0}', p)] }}" >> $GITHUB_ENV
+            PWD_SECRET="CHECKIN_PASSWORD_$p"
+            if [ -n "${{ secrets[format('CHECKIN_PASSWORD_{0}', p)] }}" ]; then
+              echo "CHECKIN_PASSWORD_$p=${{ secrets[format('CHECKIN_PASSWORD_{0}', p)] }}" >> $GITHUB_ENV
+            fi
+          done
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 执行打卡（SCF 多用户模式）
+        run: bash scripts/auto_checkin.sh
+
+      - name: 上传日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkin-log-multi
+          path: /tmp/auto_checkin_output.txt
+          retention-days: 7
+
+  # ── 单用户模式（备选）──
+  single-user:
+    if: ${{ vars.CHECKIN_PROFILES == '' || vars.CHECKIN_PROFILES == null }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      CHECKIN_OPENID: ${{ secrets.CHECKIN_OPENID }}
+      CHECKIN_USERNAME: ${{ secrets.CHECKIN_USERNAME }}
+      CHECKIN_PASSWORD: ${{ secrets.CHECKIN_PASSWORD }}
+      CHECKIN_TASK_ID: ${{ secrets.CHECKIN_TASK_ID }}
+      SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -33,19 +88,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 执行打卡
-        env:
-          CHECKIN_OPENID: ${{ secrets.CHECKIN_OPENID }}
-          CHECKIN_USERNAME: ${{ secrets.CHECKIN_USERNAME }}
-          CHECKIN_PASSWORD: ${{ secrets.CHECKIN_PASSWORD }}
-          CHECKIN_TASK_ID: ${{ secrets.CHECKIN_TASK_ID }}
-          SERVERCHAN_KEY: ${{ secrets.SERVERCHAN_KEY }}
-          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      - name: 执行打卡（单用户模式）
         run: bash scripts/auto_checkin.sh
 
-      - name: 保活提交（防止 60 天无活动停用）
+      - name: 上传日志
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkin-log-single
+          path: /tmp/auto_checkin_output.txt
+          retention-days: 7
+
+  # ── 公共 keepalive ──
+  keepalive:
+    needs: [multi-user, single-user]
+    if: always() && (needs.multi-user.result == 'success' || needs.single-user.result == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: 保活提交（防止 60 天无活动停用）
         run: |
           python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S'))" > .keepalive
           git config user.name  "Auto Check-In Bot"
@@ -54,11 +118,3 @@ jobs:
           KEEPALIVE_DATE=$(python -c "from datetime import datetime,timezone,timedelta;print(datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d'))")
           git diff --cached --quiet || git commit -m "chore: daily keepalive ${KEEPALIVE_DATE} [skip ci]"
           git push || true
-
-      - name: 上传日志
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: checkin-log
-          path: /tmp/auto_checkin_output.txt
-          retention-days: 7

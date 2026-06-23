@@ -33,7 +33,7 @@ class TestMainHandler:
     def test_exception_caught_and_notified(self):
         """异常时发送通知并返回 error 状态"""
         with patch("handler.run_multi_checkin", side_effect=RuntimeError("API 不可达")):
-            with patch("handler.send_serverchan") as mock_send:
+            with patch("handler.send_notifications") as mock_send:
                 result = main_handler({"test": True}, {})
 
         assert result["status"] == "error"

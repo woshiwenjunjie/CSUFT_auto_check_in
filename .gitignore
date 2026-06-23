@@ -58,6 +58,9 @@ reports/
 .coverage
 htmlcov/
 .pytest_cache/
+.pytest-tmp/
+.claude/
+.agents/
 
 # Local test files
 _test_*.py

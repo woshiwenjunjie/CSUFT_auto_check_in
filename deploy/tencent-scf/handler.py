@@ -26,7 +26,7 @@
 from __future__ import annotations
 
 from checkin import run_multi_checkin, _date_str
-from src.utils.notification import send_serverchan
+from src.utils.notification import send_notifications
 
 
 def main_handler(event: dict, context: dict) -> dict:
@@ -41,6 +41,6 @@ def main_handler(event: dict, context: dict) -> dict:
         err_msg = f"未捕获异常: {e}"
         print(f"[错误] {err_msg}")
         result = {"status": "error", "msg": err_msg, "date": _date_str()}
-        send_serverchan(f"❌ 打卡失败 · {_date_str()}", f"## {err_msg}")
+        send_notifications(f"❌ 打卡失败 · {_date_str()}", f"## {err_msg}")
     print(f"[结果] status={result['status']} msg={result.get('msg', '')}")
     return result

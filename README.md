@@ -1,193 +1,141 @@
-# CSUFT 自动晚点名打卡 — v0.13.0
+# CSUFT 自动晚点名打卡
 
-[![Tests](https://img.shields.io/badge/tests-106%2F106%20%E2%9C%85-green)](tests/)
+版本：`v0.15.0`
+状态：CLI、腾讯云 SCF、GitHub Actions 均可用；FastAPI 后端仍为预留骨架。
+
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green)]()
-[![Version](https://img.shields.io/badge/version-0.13.0-blue)]()
+[![Tests](https://img.shields.io/badge/tests-114%20passed-green)](tests/)
+[![Version](https://img.shields.io/badge/version-0.15.0-blue)]()
 
-通过逆向工程还原微信小程序 API，实现命令行一键自动打卡。无需每天打开小程序，支持 GitHub Actions 全自动托管打卡。
+这是一个中南林业科技大学自动晚点名打卡工具。项目通过逆向还原微信小程序 API、签名算法和请求头环境，提供命令行打卡、多账号批量打卡、腾讯云 SCF 定时执行、GitHub Actions 轻量托管、Server酱/Telegram 通知等能力。
 
-> ⚠️ **仅供学习交流使用**。使用本工具请遵守学校相关规定，开发者不对因使用本工具产生的任何后果负责。
+> 仅供学习交流。使用前请自行确认是否符合学校规定；用户需对自己的使用行为负责。
 
----
+## 当前能力
 
-## ✨ 功能特性
+| 能力 | 当前状态 |
+| --- | --- |
+| OpenID 登录 | 可用。小程序密码授权已被服务端拒绝，实际只能走 OpenID / WebVPN token |
+| CLI 打卡 | 可用。支持任务查询、打卡、补签、记录查询、月度统计 |
+| 多账号 | 可用。`profiles` 配置 + `checkin --profiles` 批量执行 |
+| 微信小程序模式 | 可用。自动补齐 Referer、User-Agent、Basic Auth、FlySource-sign |
+| WebVPN 模式 | 可用。通过 `client_mode=web` 和 WebVPN token 调用对应环境头 |
+| 腾讯云 SCF | 推荐部署方式。北京时间 Cron，独立 zip 包，支持多账号环境变量 |
+| GitHub Actions | 轻量备选。UTC Cron，支持多账号/单账号分支和 keepalive |
+| 通知 | Server酱 + Telegram 统一由 Python 模块发送 |
+| 签名验证 | Python 实现和 `scripts/sign.js` 交叉验证 |
+| FastAPI 后端 | 仅骨架预留，阶段三未完成 |
 
-| 特性 | 说明 |
-|------|------|
-| 🔑 一键打卡 | 模拟 GPS 偏移，自动完成晚点名签到 |
-| 👥 多账号批量 | `checkin --profiles` 一次命令打多个号，SCF 原生多用户循环 |
-| 🤖 全自动托管 | GitHub Actions / 腾讯云 SCF 定时打卡 + 微信通知 |
-| 🔒 安全认证 | 基于 OpenID 的 OAuth 登录，密码混淆本地存储 |
-| 🧪 算法可验证 | 106 个自动化测试，JS/Python 签名交叉验证 |
-| 📱 OpenID 自动捕获 | 内置 mitmproxy 插件 / 模拟器一键脚本 |
-| 🛠️ 交互式配置 | `setup` 向导式首次配置，零门槛上手 |
-| ⏰ 窗口检测 | 自动检测打卡窗口（21:00–22:30），非窗口期友好提示 |
+## 快速开始
 
----
-
-## 📋 目录
-
-- [快速开始](#-快速开始)
-- [安装](#-安装)
-- [使用方法](#-使用方法)
-- [配置说明](#-配置说明)
-- [项目架构](#-项目架构)
-- [测试](#-测试)
-- [自动化打卡](#-自动化打卡github-actions)
-- [技术原理](#-技术原理)
-- [常见问题](#-常见问题)
-- [开发指南](#-开发指南)
-- [许可证](#-许可证)
-
----
-
-## 🚀 快速开始
-
-```bash
-# 1. 克隆仓库
-git clone <repo-url>
-cd auto_check_in
-
-# 2. 创建虚拟环境
+```powershell
 python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# .\.venv\Scripts\activate  # Windows PowerShell
-
-# 3. 安装依赖
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 
-# 4. 首次配置（交互式向导）
 python scripts/cli.py setup
-
-# 5. 一键打卡
+python scripts/cli.py status
 python scripts/cli.py checkin
 ```
 
----
+如果还没有 OpenID，推荐先用模拟器或抓包工具获取：
 
-## 📦 安装
-
-### 环境要求
-
-- Python 3.10+
-- Node.js（可选，用于签名交叉验证）
-- mitmproxy（可选，用于自动捕获 OpenID）
-
-### 依赖安装
-
-```bash
-pip install -r requirements.txt
-```
-
-生产环境依赖：
-
-| 包 | 版本 | 用途 |
-|----|------|------|
-| `httpx` | 0.28.1 | 异步 HTTP 客户端 |
-| `fastapi` | 0.115.6 | Web 框架（阶段三预留） |
-| `uvicorn` | 0.34.0 | ASGI 服务器 |
-| `python-dotenv` | 1.1.0 | 环境变量加载 |
-| `pytest` | 8.3.4 | 测试框架 |
-
----
-
-## 🎯 使用方法
-
-### CLI 命令一览
-
-```bash
-python scripts/cli.py <command>
-```
-
-| 命令 | 功能 |
-|------|------|
-| `setup` | 交互式首次配置向导（支持 `--profile` 多账号） |
-| `status` | 查看登录状态、今日任务、打卡记录 |
-| `login-openid` | OpenID 登录（`--bind 0` 免密码，`--profile` 多账号） |
-| `capture-openid` | 启动 mitmproxy 自动捕获 OpenID |
-| `tasks` | 查看打卡任务列表 |
-| `login-webvpn` | WebVPN Token 验证+保存（备用方案） |
-| `detail` | 查看任务详情（宿舍坐标、精度上限） |
-| `checkin` | 一键打卡签到（`--profiles` 批量多个账号，`--record` 查记录，`--month` 月统计） |
-| `config` | 管理配置（`config profile list` 列出账号，`config profile <名称>` 切换） |
-
-### 首次使用流程
-
-#### Step 1: 获取 OpenID（必需）
-
-OpenID 是微信小程序用户的唯一标识，必须通过抓包获取。
-
-**方式 A：自动捕获（推荐）**
-
-```bash
-# 安装 mitmproxy（首次）
+```powershell
 pip install mitmproxy
-
-# 启动自动捕获
 python scripts/cli.py capture-openid
 ```
 
-然后：
-1. 手机与电脑连接同一 WiFi
-2. 手机设置代理为 `电脑IP:8080`
-3. 访问 `mitm.it` 安装 CA 证书
-4. 打开微信小程序，OpenID 自动保存到配置
+也可以用模拟器自动脚本：
 
-**方式 B：手动抓包（Fiddler）**
+```powershell
+python scripts/tools/capture_openid_emulator.py
+```
 
-参考详细教程：[Fiddler 抓包获取 OpenID 完整指南](docs/guides/user/fiddler-抓包获取OpenID.md)
+## 常用命令
 
-#### Step 2: 配置登录
-
-```bash
+```powershell
+# 首次配置
 python scripts/cli.py setup
-# 按提示输入：OpenID → 学号 → 密码
-```
 
-#### Step 3: 日常打卡
+# OpenID 登录，已绑定账号可免密码
+python scripts/cli.py login-openid --profile USER_1 --username 2023XXXXXX --bind 0
 
-```bash
-# 查看状态
+# WebVPN token 登录
+python scripts/cli.py login-webvpn "bearer eyJ..." 2023XXXXXX
+
+# 查看状态、任务、详情
 python scripts/cli.py status
+python scripts/cli.py tasks
+python scripts/cli.py detail
 
-# 一键打卡（自动模拟 GPS 偏移）
+# 打卡
 python scripts/cli.py checkin
+python scripts/cli.py checkin --profiles USER_1,USER_2,USER_3
 
-# 批量打卡多个账号
-python scripts/cli.py checkin --profiles USER_1,USER_2
-```
-
-### 查看打卡记录
-
-```bash
-# 今日记录
+# 查询记录
 python scripts/cli.py checkin --record
-
-# 指定日期
 python scripts/cli.py checkin --record --date 2026-06-01
-
-# 整月统计
 python scripts/cli.py checkin --month 2026-06
+
+# 配置管理
+python scripts/cli.py config
+python scripts/cli.py config profile list
+python scripts/cli.py config profile USER_2
+python scripts/cli.py config sync
 ```
 
----
+## 认证说明
 
-## ⚙️ 配置说明
+### 为什么必须获取 OpenID
 
-### 环境变量
+反编译小程序后确认：传统 `signIn`、`getCaptcha` 代码路径没有被小程序实际调用。服务端也会返回：
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `CHECKIN_BASE_URL` | `https://simp.csuft.edu.cn` | API 基地址 |
-| `FLYSOURCE_CLIENT_ID` | `flysource_wise_wxapp` | OAuth 客户端 ID |
-| `FLYSOURCE_CLIENT_SECRET` | `DA788asdUDjnasd_flysource_wxappdsdadDAIUiuwqe` | OAuth 客户端密钥 |
-| `WX_APP_ID` | `wx0e47c34c9982aa09` | 微信小程序 AppID |
-| `WX_VERSION` | `7` | 小程序版本号 |
+```text
+Unauthorized grant type: password
+```
 
-### 本地配置文件
+因此日常登录应使用：
 
-路径：`~/.auto_check_in/config.json`
+1. 通过抓包获取微信小程序 OpenID
+2. 使用 `grant_type=wxapp` 换取 access token
+3. 之后请求带上 `FlySource-Auth` 和 `FlySource-sign`
+
+WebVPN 是备用路径：从浏览器复制 WebVPN 页面请求里的 `flysource-auth`，再用 `login-webvpn` 保存。
+
+### 必要请求头
+
+缺少环境头时，服务端可能返回误导性的“签名错误”。先检查请求头，再怀疑签名算法。
+
+```text
+Authorization: Basic <base64(ClientId:ClientSecret)>
+FlySource-Auth: <access_token>
+FlySource-sign: <签名>
+Referer: https://servicewechat.com/wx0e47c34c9982aa09/7/page-frame.html
+User-Agent: ...MicroMessenger...MiniProgramEnv/android
+```
+
+签名格式：
+
+```text
+FlySource-sign = MD5(path + "?sign=" + MD5(ts + token)) + "1." + Base64(ts)
+```
+
+验证：
+
+```powershell
+python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token test_token --js
+python scripts/tools/cross_validate.py
+```
+
+## 本地配置
+
+CLI 配置文件位于：
+
+```text
+~/.auto_check_in/config.json
+```
+
+多账号结构示例：
 
 ```json
 {
@@ -199,331 +147,203 @@ python scripts/cli.py checkin --month 2026-06
       "openid": "oXXXXXXXX...",
       "password": "$obf:base64...",
       "token": "eyJhbGciOi...",
-      "task_id": "b49ffb37..."
-    },
-    "USER_2": {
-      "tenant_id": "000000",
-      "username": "2023XXXXXX",
-      "openid": "oXXXXXXXX...",
-      "token": "eyJhbGciOi..."
+      "task_id": "task-id",
+      "client_mode": "wxapp"
     }
   }
 }
 ```
 
-- 多账号通过 `profiles` 字典管理，`config profile list` 查看全部
-- `config profile USER_2` 切换当前账号
-- `checkin --profiles USER_1,USER_2` 批量打卡多个账号
-- 密码采用 `$obf:<base64>` 混淆存储（防明文，非加密）
-- 凭据显示时自动脱敏，仅显示首尾字符
+安全约定：
 
----
+- 终端显示凭据时必须脱敏。
+- 密码通过 `secure_input` 输入。
+- 本地密码仅 `$obf:<base64>` 混淆保存，不是强加密。
+- README 中的 ClientId、ClientSecret 默认值来自反编译源码，是应用级公开常量，不是用户凭据。
 
-## 🏗️ 项目架构
+## 腾讯云 SCF 部署
 
-```
-┌─────────────────────────────────────────┐
-│           用户交互层                     │
-│  ┌──────────────┐  ┌──────────────┐    │
-│  │  CLI 工具     │  │  微信通知     │    │
-│  │ scripts/cli   │  │ Server酱     │    │
-│  └──────────────┘  └──────────────┘    │
-├─────────────────────────────────────────┤
-│           自动化层                       │
-│  ┌──────────────────────────────────┐   │
-│  │  GitHub Actions                  │   │
-│  │  cron → bash → login → checkin  │   │
-│  │  → notify                        │   │
-│  └──────────────────────────────────┘   │
-├─────────────────────────────────────────┤
-│           核心引擎                       │
-│  ┌─────────────────────────────────┐    │
-│  │  ApiClient (src/core/client)    │    │
-│  │  ├─ 8 个学校 API 端点            │    │
-│  │  ├─ 自动签名 / 认证 / 重试       │    │
-│  │  └─ 微信环境伪装                 │    │
-│  └─────────────────────────────────┘    │
-│  ┌─────────────────────────────────┐    │
-│  │  工具模块 (src/utils/)           │    │
-│  │  ├─ sign.py         签名算法     │    │
-│  │  ├─ crypto.py       MD5/Base64  │    │
-│  │  ├─ geo.py          GPS计算+退避  │    │
-│  │  ├─ notification.py 通知推送+窗口  │    │
-│  └─────────────────────────────────┘    │
-│  ┌─────────────────────────────────┐    │
-│  │  共享模块 (src/core/)           │    │
-│  │  ├─ sign_builder.py 请求体构建   │    │
-│  │  └─ token_client.py SCF适配器    │    │
-├─────────────────────────────────────────┤
-│           阶段三（规划中）               │
-│  ┌─────────────────────────────────┐    │
-│  │  FastAPI + SQLAlchemy           │    │
-│  │  + APScheduler 多用户 Web 后端   │    │
-│  └─────────────────────────────────┘    │
-└─────────────────────────────────────────┘
-```
+推荐使用 SCF 作为生产部署方式。SCF Cron 使用北京时间，表达式无需再做 UTC 换算。
 
-### 目录结构
-
-```
-auto_check_in/
-├── src/                    # Python 源码
-│   ├── core/client.py      # ApiClient — 核心 API 客户端
-│   ├── core/sign_builder.py# 共享请求体构建
-│   ├── core/token_client.py# SCF 环境变量适配器
-│   ├── utils/              # 工具模块（sign / crypto / geo / notification）
-│   ├── api/                # (预留) FastAPI 路由
-│   ├── models/             # (预留) 数据模型
-│   ├── services/           # (预留) 业务服务
-│   └── main.py             # FastAPI 入口
-├── scripts/                # CLI 工具 + GitHub Actions 脚本
-│   ├── cli.py              # CLI 入口（9 个子命令）
-│   ├── cli_commands/       # 子命令实现
-│   ├── cli_config.py       # 配置管理
-│   ├── cli_ui.py           # 终端 UI 组件
-│   ├── capture_addon.py    # mitmproxy OpenID 捕获插件
-│   ├── tools/              # 工具脚本（verify_sign / cross_validate / decompile_wxapkg）
-│   ├── auto_checkin.sh     # GitHub Actions 执行脚本
-│   └── sign.js             # JS 签名参考实现
-├── deploy/                 # 非 GitHub 部署方案
-│   └── tencent-scf/        # 腾讯云 SCF 部署（推荐，含 deploy.py gen-env）
-├── tests/                  # 测试（106 个用例）
-├── docs/                   # 文档体系：getting-started / guides / reference / development / memory
-├── references/             # 外部参考资料 + 小程序反编译源码
-├── reviews/                # 代码审查记录
-├── frontend/               # (预留) 前端页面
-└── .github/workflows/      # GitHub Actions CI/CD
-```
-
----
-
-## 🧪 测试
-
-```bash
-# 运行全部测试
-python -m pytest tests/ -v
-
-# 签名交叉验证（需 Node.js）
-python -m pytest tests/test_cross_validate.py -v
-
-# 工具：JS/Python 交叉验证（5 组随机）
-python scripts/tools/cross_validate.py
-
-# 工具：交互式签名验证
-python scripts/tools/verify_sign.py --path /api/test --ts 1700000000000 --token test_token
-```
-
-| 测试文件 | 用例数 | 覆盖内容 |
-|----------|--------|----------|
-| `test_crypto.py` | 6 | MD5、Base64 |
-| `test_sign.py` | 9 | 签名算法、Basic Auth、空路径/中文路径 |
-| `test_geo.py` | 14 | Haversine 距离、GPS 随机偏移、极端坐标、零偏移 |
-| `test_config.py` | 6 | 密码混淆、明文/混淆/空密码读取 |
-| `test_cross_validate.py` | 5 | JS vs Python 签名一致性 |
-| `test_client_integration.py` | 9 | 401 检测、签名格式、重试机制 |
-| `tests/deploy/test_notify.py` | 4 | Server酱 推送（跳过/200/500/重试） |
-| `tests/deploy/test_checkin_core.py` | 29 | 时间函数、窗口检测、通知（中文映射/分组/窗口行） |
-| `tests/deploy/test_checkin_api.py` | 16 | GPS 退避、签名数据、MD5 确定性、ApiTokenClient |
-| `tests/deploy/test_handler.py` | 4 | 健康检查、正常执行、异常捕获 |
-| `tests/deploy/test_deploy_utils.py` | 4 | 打包大小格式化 |
-
-**全部 106 个测试通过 ✅**
-
----
-
-## ☁️ 腾讯云 SCF 部署（推荐）
-
-项目同时提供腾讯云云函数（SCF）部署方案，作为 GitHub Actions 的升级替代。
-
-### 对比：GitHub Actions vs SCF
-
-| 维度 | GitHub Actions | 腾讯云 SCF ✅ |
-|------|---------------|--------------|
-| 触发 | UTC 时间，需考虑时区转换 | 北京时间，Cron 直接配置 |
-| 保活 | 需人工保持仓库活跃（60 天规则） | 无此限制，配置即用 |
-| 通知 | Server酱 + Telegram + Step Summary | Server酱微信推送 |
-| 日志 | GitHub Actions 日志界面 | SCF 控制台日志，保留更久 |
-| 费用 | 免费（但有使用配额） | 免费额度远超打卡需求 |
-| 维护 | 需维护仓库 fork | 一次配置，上传即用 |
-| 依赖 | 自动安装环境 | 打包上传，环境固化 |
-| 稳定性 | 依赖 GitHub 服务可用性 | 腾讯云 SLA 保障 |
-| 配置 | Secrets 环境变量 | SCF 控制台环境变量（可加密） |
-
-**推荐使用 SCF**：无保活困扰、北京时间原生支持、配置一次长期稳定运行。
-
-SCF 默认以多用户模式运行。不设 `CHECKIN_PROFILES` 时自动回退单用户（`CHECKIN_OPENID` 兜底），新旧配置无缝兼容。
-
-### 快速部署
-
-```bash
-# 1. 生成环境变量 JSON（从 password.txt）
+```powershell
+# 生成 SCF 环境变量 JSON
 python deploy/tencent-scf/deploy.py gen-env
 
-# 2. 打包代码
+# 生成上传包，不上传
 python deploy/tencent-scf/deploy.py --dry-run
-
-# 3. SCF 控制台：
-#    ① 函数代码 → 本地上传 zip → 选 scf_package.zip → 部署
-#    ② 函数配置 → 环境变量 → 导入 scf_env.json
-#    ③ 敏感字段逐行勾选「加密」
-#    ④ 触发管理 → 创建触发器 → 0 5 21 * * ? *（每天 21:05 北京时间）
 ```
 
-### 多用户环境变量（SCF 控制台配置）
+上传包位置：
 
+```text
+deploy/tencent-scf/scf_package.zip
 ```
+
+当前重新生成的 zip 约 `1.4 MB`。zip 被 `.gitignore` 忽略，不提交到仓库。
+
+SCF 建议配置：
+
+```text
+运行时：Python 3.10
+入口：handler.main_handler
+Cron：0 5 21 * * ? *
+```
+
+多账号环境变量示例：
+
+```text
 CHECKIN_PROFILES=USER_1,USER_2,USER_3
-CHECKIN_OPENID_USER_1=o开头28位    → 加密
-CHECKIN_USERNAME_USER_1=2023XXXXXX → 加密
-# USER_1 免密码，不设 PASSWORD_USER_1
-CHECKIN_OPENID_USER_2=o开头28位    → 加密
-CHECKIN_USERNAME_USER_2=2023XXXXXX → 加密
-SERVERCHAN_KEY=SCT123...           → 加密（可选，微信推送用）
+CHECKIN_OPENID_USER_1=oXXXXXXXX...
+CHECKIN_USERNAME_USER_1=2023XXXXXX
+CHECKIN_OPENID_USER_2=oXXXXXXXX...
+CHECKIN_USERNAME_USER_2=2023XXXXXX
+SERVERCHAN_KEY=SCT...
+TG_BOT_TOKEN=...
+TG_CHAT_ID=...
 ```
 
-详细教程：[腾讯云 SCF 部署指南](docs/guides/user/腾讯云SCF部署指南.md) | `deploy/tencent-scf/README.md`
+详细教程见 [腾讯云 SCF 部署指南](docs/guides/user/腾讯云SCF部署指南.md) 和 [deploy/tencent-scf/README.md](deploy/tencent-scf/README.md)。
 
----
+## GitHub Actions
 
-项目内置完整的 GitHub Actions 工作流，实现零成本全自动托管：
+GitHub Actions 是 SCF 的轻量备选方案：
 
-- **触发时间**：每天 UTC 13:05（北京时间 21:05）
-- **支持手动触发**：`workflow_dispatch`
-- **通知渠道**：Server酱微信推送、Telegram Bot、GitHub Step Summary
-- **保活机制**：每日自动 commit，防止仓库因 60 天无活动被停用
+- 定时：每天 UTC 13:05，即北京时间 21:05。
+- 手动：支持 `workflow_dispatch`。
+- 多账号：设置 `vars.CHECKIN_PROFILES` 后走多账号 Job。
+- 单账号：不设置 `vars.CHECKIN_PROFILES` 时走单账号 Job。
+- 通知：由 Python 统一发送 Server酱 + Telegram。
+- 保活：独立 keepalive Job，避免 60 天无活动导致定时任务停用。
 
-### 单用户配置（最简）
+单账号 Secrets：
 
-1. Fork 本仓库
-2. 仓库 Settings → Secrets and variables → Actions 中添加：
-   - `CHECKIN_OPENID` — 你的微信小程序 OpenID
-   - `CHECKIN_USERNAME` — 学号
-   - `CHECKIN_PASSWORD` — 密码
-   - `SERVERCHAN_KEY` — Server酱 SendKey（可选）
-3. Actions 页面启用工作流
-
-### 多用户配置
-
-多账号需额外配 `CHECKIN_PROFILES` 和带后缀的凭据，工作流 env 段自行扩展。
-
----
-
-## 🔬 技术原理
-
-### 签名算法
-
-飞源（FlySource）平台使用自定义签名防止请求伪造：
-
-```
-FlySource-sign = MD5(path + "?sign=" + MD5(ts + token)) + "1." + Base64(ts)
+```text
+CHECKIN_OPENID
+CHECKIN_USERNAME
+CHECKIN_PASSWORD
+CHECKIN_TASK_ID
+SERVERCHAN_KEY
+TG_BOT_TOKEN
+TG_CHAT_ID
 ```
 
-- `path`：URL 路径（不含 query）
-- `ts`：13 位毫秒时间戳
-- `token`：OAuth access_token
+多账号 Secrets：
 
-### 认证流程
-
-```
-wx.login() → getOpenidByJsCode → oauth/token (grant_type=wxapp)
-```
-
-> 注意：密码登录（`grant_type=password`）已被服务器禁用，必须使用 OpenID 方式。
-> 另提供 WebVPN 客户端模式（`client_mode: web`），通过 CAS SSO 登录 WebVPN 后调用办公版 API。
-
-### 请求头要求
-
-```
-Authorization: Basic <base64(ClientId:ClientSecret)>
-FlySource-Auth: <access_token>
-FlySource-sign: <签名>
-Referer: https://servicewechat.com/wx0e47c34c9982aa09/7/page-frame.html
-User-Agent: ...MicroMessenger...MiniProgramEnv/android
+```text
+CHECKIN_OPENID_USER_1
+CHECKIN_USERNAME_USER_1
+CHECKIN_PASSWORD_USER_1
+CHECKIN_OPENID_USER_2
+CHECKIN_USERNAME_USER_2
+CHECKIN_PASSWORD_USER_2
 ```
 
-缺少 `Referer` 或 `User-Agent` 时，服务器会返回误导性的"签名错误"。
+## 时间规则
 
-### GPS 偏移算法
+这是本项目最容易踩坑的地方：
 
-以宿舍坐标为中心，使用带 seed 的伪随机生成偏移量（保留 6 位小数），确保每次打卡位置在合理范围内波动。
+- API 时间判定基于 UTC。
+- 打卡窗口是 UTC 13:00-14:30。
+- 展示给用户时转换为北京时间 21:00-22:30。
+- GitHub Actions Cron 使用 UTC：`5 13 * * *`。
+- SCF 控制台 Cron 使用北京时间：`0 5 21 * * ? *`。
 
----
+## 项目结构
 
-## ❓ 常见问题
-
-**Q: 为什么必须用 OpenID，不能直接用密码登录？**
-
-A: 小程序源码分析确认 `signIn` 和 `getCaptcha` 函数从未被调用，是死代码。服务器返回 `"Unauthorized grant type: password"`，拒绝密码授权。必须通过抓包获取 OpenID。
-
-**Q: 手机开热点时怎么抓包？**
-
-A: 手机本身无法设代理时，可用：
-- **Reqable**（原 HTTPCanary）：本地 VPN 抓包，无需代理
-- **USB 反向共享**：电脑开 Fiddler，手机 USB 连接电脑并开启 USB 网络共享，再设置代理
-
-**Q: 打卡失败提示"签名错误"怎么办？**
-
-A: 先检查请求头是否完整，特别是 `Referer` 和 `User-Agent`。这两个头缺失时服务器会返回误导性的签名错误，实际签名算法可能没问题。
-
-**Q: 如何验证签名算法正确性？**
-
-A: 运行交叉验证测试：
-```bash
-node scripts/sign.js /api/test 1700000000000 test_token
-python -m pytest tests/test_cross_validate.py -v
+```text
+auto_check_in/
+├── .github/workflows/        # GitHub Actions 定时任务
+├── deploy/tencent-scf/       # 腾讯云 SCF 部署、打包脚本和入口
+├── docs/                     # 用户指南、参考文档、开发文档
+├── frontend/                 # 阶段三预留前端目录
+├── references/               # 逆向分析参考和反编译小程序文件
+├── reviews/                  # 代码审查记录
+├── scripts/
+│   ├── cli.py                # CLI 入口
+│   ├── cli_commands/         # 子命令实现
+│   ├── tools/                # 签名验证、wxapkg、OpenID 捕获辅助
+│   ├── auto_checkin.sh       # GitHub Actions 编排脚本
+│   └── sign.js               # JS 签名参考实现
+├── src/
+│   ├── core/
+│   │   ├── client.py         # ApiClient，学校接口封装
+│   │   ├── sign_builder.py   # 打卡请求体构建
+│   │   └── token_client.py   # SCF 环境变量适配器
+│   ├── utils/
+│   │   ├── crypto.py         # MD5 / Base64
+│   │   ├── geo.py            # 距离和 GPS 偏移
+│   │   ├── notification.py   # 通知、窗口提示、汇总文案
+│   │   └── sign.py           # FlySource-sign
+│   └── main.py               # FastAPI 预留入口
+├── tests/                    # 自动化测试
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── requirements-dev.txt
 ```
 
----
+根目录只保留项目入口、配置模板、依赖文件和顶层说明。测试临时目录、虚拟环境、zip 包、凭据文件和本地助手配置均由 `.gitignore` 排除。
 
-## 🛠️ 开发指南
+## 测试
 
-### 添加新 CLI 子命令
+```powershell
+# 全量测试
+python -m pytest tests/ -q
 
-1. 新建 `scripts/cli_commands/xxx.py`，实现 `run(args)` 函数
-2. 在 `scripts/cli.py` 中 import + dispatch + argparse
+# Windows 临时目录权限异常时，可指定项目内临时目录
+python -m pytest tests/ -q --basetemp .pytest-tmp
 
-### 修改签名算法
+# 签名交叉验证
+python scripts/tools/cross_validate.py
+```
 
-- 必须同步更新 `scripts/sign.js`
-- 运行 `python -m pytest tests/test_cross_validate.py -v` 验证一致性
+当前验证结果：
 
-### 代码规范
+```text
+114 passed
+JS/Python 签名交叉验证 5 组全部通过
+```
 
-**凭据安全**
-- README 中展示的默认值（`FLYSOURCE_CLIENT_ID`、`FLYSOURCE_CLIENT_SECRET`、`WX_APP_ID` 等）均来自小程序反编译源码，属于应用级公开常量，**不构成敏感信息**。真正的用户级凭据（OpenID、密码、token）不会出现在任何文档中。
-- 所有凭据在终端显示时自动脱敏（`_mask`），仅展示首尾字符。
-- 密码本地存储使用 `$obf:<base64>` 混淆，禁止明文。
-- 环境变量中的敏感字段建议在部署平台（SCF/CI）中勾选加密存储。
+## 版本状态
 
-**代码风格**
-- 模块化设计，单文件不超过 300 行。
-- 函数职责单一，命名体现用途（如 `_build_notification`、`_is_window_open`）。
-- 新增子命令：`scripts/cli_commands/xxx.py` → 实现 `run(args)` → cli.py import + dispatch + argparse。
-- 变量名拒绝缩写（`dorm_lat` → `dormitory_lat`、`cur_offset` → `current_offset_degrees`）。
+`v0.15.0` 聚焦文档和稳定性整理：
 
-**验证纪律**
-- 变更签名算法时同步更新 `scripts/sign.js`，并运行交叉验证测试。
-- 测试覆盖率目标：核心模块 90%+，部署模块 80%+。
-- 提交前确保 `python -m pytest tests/ -v` 全部通过。
+- README 完整重写，移除旧版乱码和过期描述。
+- 根目录临时文件清理，补充 `.pytest-tmp/`、`.claude/` 忽略规则。
+- 当前实际测试数更新为 114。
+- 保留现有功能边界：不新增后端功能，不宣称 FastAPI 阶段三已完成。
 
-**文档同步**
-- 架构/功能变更时同步更新 README 目录结构、AGENTS.md（本地）、CHANGELOG。
-- 关键决策记录在 `reviews/` 审查记录中，包含决策理由与备选方案。
+上一轮代码修复已包含：
 
-**时区陷阱**
-- 所有 API 时间基于 **UTC**，显示时做 UTC+8 转换。
-- 打卡窗口为 UTC 13:00–14:30（北京时间 21:00–22:30）。
-- SCF Cron 使用北京时间直接配置（`0 5 21 * * ? *`），无需时区转换。
+- GitHub Actions 脚本导入路径修复。
+- 打卡失败/部分失败正确返回非零退出码。
+- SCF 全失败返回 `error`，部分成功返回 `partial`。
+- 通知成功统计改为状态码白名单。
+- Server酱 HTTP 200 内业务失败不再误判成功。
+- 通知时间显式使用北京时间。
 
----
+## 主要文档
 
-## 📄 许可证
+| 文档 | 路径 |
+| --- | --- |
+| 文档总索引 | [docs/README.md](docs/README.md) |
+| 快速开始 | [docs/getting-started/快速开始.md](docs/getting-started/快速开始.md) |
+| CLI 教程 | [docs/guides/user/CLI教程.md](docs/guides/user/CLI教程.md) |
+| 添加新账号 | [docs/guides/user/添加新账号教程.md](docs/guides/user/添加新账号教程.md) |
+| 模拟器抓取 OpenID | [docs/guides/user/模拟器自动抓取OpenID.md](docs/guides/user/模拟器自动抓取OpenID.md) |
+| 签名算法详解 | [docs/reference/签名算法详解.md](docs/reference/签名算法详解.md) |
+| 认证流程与抓包分析 | [docs/reference/认证流程与抓包分析.md](docs/reference/认证流程与抓包分析.md) |
+| API 端点参考 | [docs/reference/API端点参考.md](docs/reference/API端点参考.md) |
+| SCF 部署指南 | [docs/guides/user/腾讯云SCF部署指南.md](docs/guides/user/腾讯云SCF部署指南.md) |
+| 阶段三路线图 | [docs/development/阶段三路线图.md](docs/development/阶段三路线图.md) |
+
+## 开发约定
+
+- 新增 CLI 子命令：`scripts/cli_commands/xxx.py` 实现 `run(args)`，再在 `scripts/cli.py` 注册。
+- 修改签名算法时必须同步 `scripts/sign.js`，并运行 `python scripts/tools/cross_validate.py`。
+- 涉及请求环境时，优先检查 Referer/User-Agent/Basic Auth，再检查签名算法。
+- 架构、功能或部署说明变更时，同步 README、文档索引和变更记录。
+
+## License
 
 MIT License
-
----
-
-## 🙏 致谢
-
-- 逆向分析参考：[NaHS2 自动打卡文章总结](references/nahs-online-自动打卡文章总结.md) · [nahsit.com](https://nahsit.com)
-- 飞源（FlySource）统一认证平台
