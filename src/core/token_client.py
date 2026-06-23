@@ -39,6 +39,14 @@ class ApiTokenClient:
         return self._task_id
 
     def login(self) -> tuple[bool, str]:
+        missing = []
+        if not self.openid:
+            missing.append(f"CHECKIN_OPENID_{self.profile}")
+        if not self.username:
+            missing.append(f"CHECKIN_USERNAME_{self.profile}")
+        if missing:
+            return False, "缺少环境变量: " + ", ".join(missing)
+
         try:
             self.client = ApiClient()
             resp = self.client.sign_in_openid(

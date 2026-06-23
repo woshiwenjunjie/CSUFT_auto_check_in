@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime as dt, timezone
 from src.core.token_client import ApiTokenClient
-from src.utils.notification import send_serverchan, build_notification, is_window_open, window_hint
+from src.utils.notification import send_notifications, build_notification, is_window_open, window_hint
 
 
 # ── 时区工具 ─────────────────────────────────────────────
@@ -69,7 +69,14 @@ def run_multi_checkin() -> dict:
     results = _do_multi_or_single(profile_names)
 
     status_map = {r["profile"]: f"{r['status']}|{r.get('detail', '')}" for r in results}
-    all_ok = all(r["status"] in ("ok", "duplicate") for r in results)
+    success_statuses = {"ok", "duplicate"}
+    success_count = sum(1 for r in results if r["status"] in success_statuses)
+    if success_count == len(results):
+        final_status = "ok"
+    elif success_count == 0:
+        final_status = "error"
+    else:
+        final_status = "partial"
 
     title, content = build_notification(
         {
@@ -80,6 +87,6 @@ def run_multi_checkin() -> dict:
             for r in results
         }
     )
-    send_serverchan(title, content)
+    send_notifications(title, content)
 
-    return {"status": "ok" if all_ok else "partial", "results": status_map}
+    return {"status": final_status, "results": status_map}

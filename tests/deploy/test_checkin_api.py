@@ -55,6 +55,17 @@ class TestApiTokenClientLogin:
         assert ok is False
         assert "bad token" in msg
 
+    def test_login_reports_missing_required_env_without_api_call(self):
+        with patch.dict(os.environ, {}, clear=True):
+            client = ApiTokenClient("USER_1")
+            with patch("src.core.token_client.ApiClient") as MockApi:
+                ok, msg = client.login()
+
+        assert ok is False
+        assert "CHECKIN_OPENID_USER_1" in msg
+        assert "CHECKIN_USERNAME_USER_1" in msg
+        MockApi.assert_not_called()
+
 
 class TestApiTokenClientFetchTask:
 
@@ -186,3 +197,21 @@ class TestBuildSignData:
             json.dumps(hash_input, ensure_ascii=False, separators=(",", ":")).encode()
         ).hexdigest()
         assert data["stuTaskId"] == expected
+
+
+class TestRunMultiCheckinStatus:
+
+    def test_all_failed_profiles_return_error_status(self):
+        import checkin
+
+        fake_results = [
+            {"profile": "USER_1", "status": "error", "detail": "login failed"},
+            {"profile": "USER_2", "status": "expired", "detail": "token expired"},
+        ]
+        with patch.dict(os.environ, {"CHECKIN_PROFILES": "USER_1,USER_2"}):
+            with patch.object(checkin, "is_window_open", return_value=True):
+                with patch.object(checkin, "_do_multi_or_single", return_value=fake_results):
+                    with patch.object(checkin, "send_notifications"):
+                        result = checkin.run_multi_checkin()
+
+        assert result["status"] == "error"

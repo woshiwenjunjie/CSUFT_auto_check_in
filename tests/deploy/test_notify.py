@@ -7,9 +7,19 @@
 4. httpx 抛异常 → 重试 2 次后返回 False
 """
 import os
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 import pytest
 from src.utils.notification import send_serverchan
+
+
+NOTIFICATION_PATH = Path(__file__).resolve().parents[2] / "src" / "utils" / "notification.py"
+
+
+def test_notification_module_has_no_utf8_bom():
+    content = NOTIFICATION_PATH.read_text(encoding="utf-8")
+
+    assert content.startswith("from __future__ import annotations")
 
 
 class TestSendServerchan:
@@ -23,6 +33,7 @@ class TestSendServerchan:
     def test_success_on_http_200(self):
         """HTTP 200 返回 True"""
         mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"code": 0, "message": "success"}
         with patch.dict(os.environ, {"SERVERCHAN_KEY": "SCT-test"}):
             with patch("httpx.post", return_value=mock_resp) as mock_post:
                 result = send_serverchan("title", "content")
@@ -34,6 +45,15 @@ class TestSendServerchan:
         """HTTP 非 200 返回 False"""
         mock_resp = MagicMock(status_code=500)
         mock_resp.text = "Internal Server Error"
+        with patch.dict(os.environ, {"SERVERCHAN_KEY": "SCT-test"}):
+            with patch("httpx.post", return_value=mock_resp):
+                result = send_serverchan("title", "content")
+
+        assert result is False
+
+    def test_failure_on_serverchan_business_error(self):
+        mock_resp = MagicMock(status_code=200)
+        mock_resp.json.return_value = {"code": 30001, "message": "bad content"}
         with patch.dict(os.environ, {"SERVERCHAN_KEY": "SCT-test"}):
             with patch("httpx.post", return_value=mock_resp):
                 result = send_serverchan("title", "content")

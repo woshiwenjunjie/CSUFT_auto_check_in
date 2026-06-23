@@ -58,6 +58,22 @@ class TestBuildNotification:
         title, body = build_notification({"default": "ok"})
         assert "1/1" in title
 
+    def test_known_failure_codes_do_not_count_as_success(self):
+        title, body = build_notification({
+            "USER_1": "expired",
+            "USER_2": "out_of_range",
+            "USER_3": "task_detail_failed",
+        })
+
+        assert "0/3" in title
+
+    def test_timestamp_uses_explicit_beijing_time(self):
+        with patch("src.utils.notification.datetime") as mock_dt:
+            mock_dt.now.return_value = datetime(2026, 6, 15, 13, 30)
+            title, body = build_notification({"USER_1": "ok"})
+
+        assert "2026-06-15 21:30:00" in body
+
 
 class TestMapDisplay:
 
